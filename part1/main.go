@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"math"
 	"os"
 )
 
@@ -10,13 +11,7 @@ import (
 // [opcode|d|m] [mod|reg|r/m]
 //    6    1 1    2   3   3
 
-// Opcode
-const (
-	// MOV
-	OperationMove = 0b100010
-)
-
-// Direction of the operation (the D bit)
+// Direction of the operation (the d bit)
 const (
 	RegIsSource      = 0
 	RegIsDestination = 1
@@ -24,8 +19,8 @@ const (
 
 // W bit
 const (
-	ByteOperation = 0
-	WordOperation = 1
+	ByteOperation = byte(0)
+	WordOperation = byte(1)
 )
 
 var ByteOperationRegisterFieldEncoding = map[byte]string{
@@ -78,69 +73,88 @@ func main() {
 	i := 0
 	decoded := make([]byte, 0)
 	for len(bytes) > i {
+		instruction := ""
 		operation := bytes[i]
+		i += 1
 
-		if operation == 0 {
-			break
+		operationType := ByteOperation
+		dir := byte(0)
+
+		// Opcode
+		switch {
+		// MOV: Register/memory to/from register
+		case pattern(operation, 0b100010):
+			// direction is the 2nd bit
+			// the & 0b00 is to discard all the other bits and leave the ones we care about
+			dir = (operation >> 1) & 0b00000001
+			// the & 0b00 is to discard all the other bits and leave the ones we care about
+			operationType = operation & 0b00000001
+			isWord := operationType == WordOperation
+
+			operand := bytes[i]
+			i += 1
+
+			// mod is the 2 high bits
+			mod := operand >> 6
+			if mod != RegisterModeFieldEncoding {
+				exit(fmt.Errorf("Expected to only have operations between registers; mod = 11"))
+			}
+
+			// REG
+			leftReg := (operand >> 3) & 0b00000111
+			// r/m, but we only handle registers
+			rightReg := operand & 0b00000111
+
+			left := ""
+			right := ""
+			if isWord {
+				left = WordOperationRegisterFieldEncoding[leftReg]
+				right = WordOperationRegisterFieldEncoding[rightReg]
+			} else {
+				left = ByteOperationRegisterFieldEncoding[leftReg]
+				right = ByteOperationRegisterFieldEncoding[rightReg]
+			}
+
+			dest := ""
+			src := ""
+
+			if dir == RegIsDestination {
+				dest = left
+				src = right
+			} else if dir == RegIsSource {
+				dest = right
+				src = left
+			} else {
+				panic("Assertion Error: The destination (D) is a boolean value")
+			}
+			instruction = fmt.Sprintf("mov %s, %s\n", dest, src)
+		// MOV: immediate to register/memory
+		case pattern(operation, 0b1100011):
+			panic("todo")
+		// MOV: immediate to register
+		case pattern(operation, 0b1011):
+			panic("todo")
+
+		default:
+			panic(fmt.Sprintf("AssertionError: unexpected operation %b", int(operation)))
 		}
 
-		operand := bytes[i+1]
-		i += 2
-
-		// we only care about the high 6 bits
-		opcode := operation >> 2
-		if opcode != OperationMove {
-			exit(fmt.Errorf("Only the 'MOV' operation is supported"))
-		}
-
-		// direction is the 2nd bit
-		// the & 0b00 is to discard all the other bits and leave the ones we care about
-		dir := (operation >> 1) & 0b00000001
-
-		// the & 0b00 is to discard all the other bits and leave the ones we care about
-		isWord := (operation & 0b00000001) == WordOperation
-
-		// mod is the 2 high bits
-		mod := operand >> 6
-		if mod != RegisterModeFieldEncoding {
-			exit(fmt.Errorf("Expected to only have operations between registers; mod = 11"))
-		}
-
-		// REG
-		leftReg := (operand >> 3) & 0b00000111
-		// r/m, but we only handle registers
-		rightReg := operand & 0b00000111
-
-		left := ""
-		right := ""
-		if isWord {
-			left = WordOperationRegisterFieldEncoding[leftReg]
-			right = WordOperationRegisterFieldEncoding[rightReg]
-		} else {
-			left = ByteOperationRegisterFieldEncoding[leftReg]
-			right = ByteOperationRegisterFieldEncoding[rightReg]
-		}
-
-		dest := ""
-		src := ""
-
-		if dir == RegIsDestination {
-			dest = left
-			src = right
-		} else if dir == RegIsSource {
-			dest = right
-			src = left
-		} else {
-			panic("Assertion Error: The destination (D) is a boolean value")
-		}
-
-		instruction := []byte(fmt.Sprintf("mov %s, %s\n", dest, src))
-		decoded = append(decoded, instruction...)
+		decoded = append(decoded, []byte(instruction)...)
 	}
 
 	contents := printHead(filename) + string(decoded)
 
 	fmt.Print(contents)
+}
+
+func pattern(b byte, pattern byte) bool {
+	// 0b100010 -> 6 bits
+	// 0b1011 -> 4 bits
+	bits := int(math.Trunc(math.Log2(float64(pattern))) + 1)
+	remainder := 8 - bits
+	v := b >> remainder
+
+	return v == pattern
 }
 
 func exit(err error) {

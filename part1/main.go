@@ -77,10 +77,7 @@ func main() {
 
 	i := 0
 	decoded := make([]byte, 0)
-	for {
-		if len(bytes) <= i {
-			break
-		}
+	for len(bytes) > i {
 		operation := bytes[i]
 
 		if operation == 0 {

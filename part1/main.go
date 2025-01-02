@@ -54,65 +54,44 @@ func printHead(filename string) string {
 	return fmt.Sprintf("; %s\nbits 16\n\n", filename)
 }
 
-func decode(bytes []byte) ([]byte, error) {
-	i := 0
-	decoded := make([]byte, 0)
-	for len(bytes) > i {
-		instruction := ""
-		operation := bytes[i]
-		i += 1
+type Decoder struct {
+	bytes []byte
+	pos   int
+}
 
-		operationType := ByteOperation
-		dir := byte(0)
+func newDecoder(bytes []byte) *Decoder {
+	return &Decoder{
+		bytes: bytes,
+		pos:   0,
+	}
+}
+
+func (d *Decoder) next() (byte, bool) {
+	if len(d.bytes) > d.pos {
+		b := d.bytes[d.pos]
+		d.pos += 1
+		return b, true
+	} else {
+		return 0, false
+	}
+}
+
+func (d *Decoder) decode() ([]byte, error) {
+	d.pos = 0
+	decoded := make([]byte, 0)
+	for {
+		instruction := ""
+		var err error
+		operation, ok := d.next()
+		if ok == false {
+			break
+		}
 
 		// Opcode
 		switch {
 		// MOV: Register/memory to/from register
 		case pattern(operation, 0b100010):
-			// direction is the 2nd bit
-			// the & 0b00 is to discard all the other bits and leave the ones we care about
-			dir = (operation >> 1) & 0b00000001
-			// the & 0b00 is to discard all the other bits and leave the ones we care about
-			operationType = operation & 0b00000001
-			isWord := operationType == WordOperation
-
-			operand := bytes[i]
-			i += 1
-
-			// mod is the 2 high bits
-			mod := operand >> 6
-			if mod != RegisterModeFieldEncoding {
-				return nil, fmt.Errorf("Expected to only have operations between registers; mod = 11")
-			}
-
-			// REG
-			leftReg := (operand >> 3) & 0b00000111
-			// r/m, but we only handle registers
-			rightReg := operand & 0b00000111
-
-			left := ""
-			right := ""
-			if isWord {
-				left = WordOperationRegisterFieldEncoding[leftReg]
-				right = WordOperationRegisterFieldEncoding[rightReg]
-			} else {
-				left = ByteOperationRegisterFieldEncoding[leftReg]
-				right = ByteOperationRegisterFieldEncoding[rightReg]
-			}
-
-			dest := ""
-			src := ""
-
-			if dir == RegIsDestination {
-				dest = left
-				src = right
-			} else if dir == RegIsSource {
-				dest = right
-				src = left
-			} else {
-				panic("Assertion Error: The destination (D) is a boolean value")
-			}
-			instruction = fmt.Sprintf("mov %s, %s\n", dest, src)
+			instruction, err = registerMemoryMove(operation, d)
 		// MOV: immediate to register/memory
 		case pattern(operation, 0b1100011):
 			panic("todo")
@@ -124,10 +103,64 @@ func decode(bytes []byte) ([]byte, error) {
 			panic(fmt.Sprintf("AssertionError: unexpected operation %b", int(operation)))
 		}
 
+		if err != nil {
+			return nil, err
+		}
+
 		decoded = append(decoded, []byte(instruction)...)
 	}
 
 	return decoded, nil
+}
+
+func registerMemoryMove(operation byte, d *Decoder) (string, error) {
+	// direction is the 2nd bit
+	// the & 0b00 is to discard all the other bits and leave the ones we care about
+	dir := (operation >> 1) & 0b00000001
+
+	// the & 0b00 is to discard all the other bits and leave the ones we care about
+	operationType := operation & 0b00000001
+	isWord := operationType == WordOperation
+
+	operand, ok := d.next()
+	if ok == false {
+		return "", fmt.Errorf("Expected to get an operand for the instruction")
+	}
+
+	// mod is the 2 high bits
+	mod := operand >> 6
+	if mod != RegisterModeFieldEncoding {
+		return "", fmt.Errorf("Expected to only have operations between registers; mod = 11")
+	}
+
+	// REG
+	leftReg := (operand >> 3) & 0b00000111
+	// r/m, but we only handle registers
+	rightReg := operand & 0b00000111
+
+	left := ""
+	right := ""
+	if isWord {
+		left = WordOperationRegisterFieldEncoding[leftReg]
+		right = WordOperationRegisterFieldEncoding[rightReg]
+	} else {
+		left = ByteOperationRegisterFieldEncoding[leftReg]
+		right = ByteOperationRegisterFieldEncoding[rightReg]
+	}
+
+	dest := ""
+	src := ""
+
+	if dir == RegIsDestination {
+		dest = left
+		src = right
+	} else if dir == RegIsSource {
+		dest = right
+		src = left
+	} else {
+		panic("Assertion Error: The destination (D) is a boolean value")
+	}
+	return fmt.Sprintf("mov %s, %s\n", dest, src), nil
 }
 
 func main() {
@@ -146,7 +179,8 @@ func main() {
 		exit(fmt.Errorf("Failed to read the file %s. Error = %w\n", filename, err))
 	}
 
-	decoded, err := decode(bytes)
+	decoder := newDecoder(bytes)
+	decoded, err := decoder.decode()
 
 	if err != nil {
 		exit(err)

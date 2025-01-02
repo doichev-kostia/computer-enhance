@@ -19,7 +19,8 @@ func TestDecoding(t *testing.T) {
 			t.Errorf("%s = %v", filename, err)
 		}
 
-		contents, err := decode(source)
+		decoder := newDecoder(source)
+		contents, err := decoder.decode()
 		if err != nil {
 			t.Errorf("%s = %v", filename, err)
 		}

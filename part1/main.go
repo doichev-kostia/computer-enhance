@@ -54,22 +54,7 @@ func printHead(filename string) string {
 	return fmt.Sprintf("; %s\nbits 16\n\n", filename)
 }
 
-func main() {
-	// 1 - program name, 2 - filename
-	if len(os.Args) < 2 {
-		exit(fmt.Errorf("invalid number of arguments, expected at least one for the filename\n"))
-	}
-
-	filename := os.Args[1]
-	if !fileExists(filename) {
-		exit(fmt.Errorf("The specified file %s doesn't exist\n", filename))
-	}
-
-	bytes, err := os.ReadFile(filename)
-	if err != nil {
-		exit(fmt.Errorf("Failed to read the file %s. Error = %w\n", filename, err))
-	}
-
+func decode(bytes []byte) ([]byte, error) {
 	i := 0
 	decoded := make([]byte, 0)
 	for len(bytes) > i {
@@ -97,7 +82,7 @@ func main() {
 			// mod is the 2 high bits
 			mod := operand >> 6
 			if mod != RegisterModeFieldEncoding {
-				exit(fmt.Errorf("Expected to only have operations between registers; mod = 11"))
+				return nil, fmt.Errorf("Expected to only have operations between registers; mod = 11")
 			}
 
 			// REG
@@ -140,6 +125,31 @@ func main() {
 		}
 
 		decoded = append(decoded, []byte(instruction)...)
+	}
+
+	return decoded, nil
+}
+
+func main() {
+	// 1 - program name, 2 - filename
+	if len(os.Args) < 2 {
+		exit(fmt.Errorf("invalid number of arguments, expected at least one for the filename\n"))
+	}
+
+	filename := os.Args[1]
+	if !fileExists(filename) {
+		exit(fmt.Errorf("The specified file %s doesn't exist\n", filename))
+	}
+
+	bytes, err := os.ReadFile(filename)
+	if err != nil {
+		exit(fmt.Errorf("Failed to read the file %s. Error = %w\n", filename, err))
+	}
+
+	decoded, err := decode(bytes)
+
+	if err != nil {
+		exit(err)
 	}
 
 	contents := printHead(filename) + string(decoded)

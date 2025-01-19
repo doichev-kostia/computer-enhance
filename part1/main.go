@@ -143,17 +143,16 @@ func (d *Decoder) decode() ([]byte, error) {
 			instruction, err = moveRegMemToReg(operation, d)
 		// MOV: immediate to register/memory
 		case pattern(operation, 0b1100011):
-			instruction, err = immediateToRegOrMem(operation, d)
+			instruction, err = moveImmediateToRegOrMem(operation, d)
 		// MOV: immediate to register
 		case pattern(operation, 0b1011):
-			instruction, err = immediateToReg(operation, d)
+			instruction, err = moveImmediateToReg(operation, d)
 		// MOV: memory to accumulator
 		case pattern(operation, 0b1010000):
-			panic("TODO: memory to accumulator")
-
+			instruction, err = moveMemoryToAccumulator(operation, d)
 		// MOV: accumulator to memory
 		case pattern(operation, 0b1010001):
-			panic("TODO: accumulator to memory")
+			instruction, err = moveAccumulatorToMemory(operation, d)
 
 		default:
 			panic(fmt.Sprintf("AssertionError: unexpected operation %b", int(operation)))
@@ -170,7 +169,7 @@ func (d *Decoder) decode() ([]byte, error) {
 }
 
 // [1100011|w] [mod|000|r/m] [disp-lo] [disp-hi] [data] [data if w=1]
-func immediateToRegOrMem(operation byte, d *Decoder) (string, error) {
+func moveImmediateToRegOrMem(operation byte, d *Decoder) (string, error) {
 	// the & 0b00 is to discard all the other bits and leave the ones we care about
 	operationType := operation & 0b00000001
 	verifyOperationType(operationType)
@@ -310,7 +309,7 @@ func immediateToRegOrMem(operation byte, d *Decoder) (string, error) {
 }
 
 // [1011|w|reg]  [data]  [data if w = 1]
-func immediateToReg(operation byte, d *Decoder) (string, error) {
+func moveImmediateToReg(operation byte, d *Decoder) (string, error) {
 	// the & 0b00 is to discard all the other bits and leave the ones we care about
 	operationType := (operation >> 3) & 0b00000001
 	verifyOperationType(operationType)
@@ -486,6 +485,68 @@ func moveRegMemToReg(operation byte, d *Decoder) (string, error) {
 	}
 
 	return fmt.Sprintf("mov %s, %s\n", dest, src), nil
+}
+
+// [1010000w] [addr-lo] [addr-hi]
+func moveMemoryToAccumulator(operation byte, d *Decoder) (string, error) {
+	// the & 0b00 is to discard all the other bits and leave the ones we care about
+	operationType := operation & 0b00000001
+	verifyOperationType(operationType)
+	isWord := operationType == WordOperation
+
+	address := uint16(0)
+
+	if isWord {
+		low, ok := d.next()
+		if ok == false {
+			return "", fmt.Errorf("expected to get the address value (low) for the 'memory to accumulator' instruction")
+		}
+		high, ok := d.next()
+		if ok == false {
+			return "", fmt.Errorf("expected to get the address value (high) for the 'memory to accumulator' instruction")
+		}
+
+		address = binary.LittleEndian.Uint16([]byte{low, high})
+	} else {
+		v, ok := d.next()
+		if ok == false {
+			return "", fmt.Errorf("expected to get the address value for the 'memory to accumulator' instruction")
+		}
+		address = uint16(v)
+	}
+
+	return fmt.Sprintf("mov ax, [%d]\n", address), nil
+}
+
+// [1010001w] [addr-lo] [addr-hi]
+func moveAccumulatorToMemory(operation byte, d *Decoder) (string, error) {
+	// the & 0b00 is to discard all the other bits and leave the ones we care about
+	operationType := operation & 0b00000001
+	verifyOperationType(operationType)
+	isWord := operationType == WordOperation
+
+	address := uint16(0)
+
+	if isWord {
+		low, ok := d.next()
+		if ok == false {
+			return "", fmt.Errorf("expected to get the address value (low) for the 'accumulator to address' instruction")
+		}
+		high, ok := d.next()
+		if ok == false {
+			return "", fmt.Errorf("expected to get the address value (high) for the 'accumulator to address' instruction")
+		}
+
+		address = binary.LittleEndian.Uint16([]byte{low, high})
+	} else {
+		v, ok := d.next()
+		if ok == false {
+			return "", fmt.Errorf("expected to get the address value for the 'accumulator to address' instruction")
+		}
+		address = uint16(v)
+	}
+
+	return fmt.Sprintf("mov [%d], ax\n", address), nil
 }
 
 func main() {

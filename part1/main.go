@@ -222,7 +222,12 @@ func immediateToRegOrMem(operation byte, d *Decoder) (string, error) {
 			return "", fmt.Errorf("expected to receive the displacement value for the 'immediate to register/memory' instruction")
 		}
 		equation := EffectiveAddressEquation[rm]
-		dest = fmt.Sprintf("[%s + %d]", equation, displacement)
+		signed := int8(displacement)
+		if signed < 0 {
+			dest = fmt.Sprintf("[%s - %d]", equation, ^signed+1) // remove the sign 1111 1011 -> 0000 0101
+		} else {
+			dest = fmt.Sprintf("[%s + %d]", equation, displacement)
+		}
 
 	case MemoryMode16DisplacementFieldEncoding:
 		displacementLow, ok := d.next()
@@ -236,7 +241,12 @@ func immediateToRegOrMem(operation byte, d *Decoder) (string, error) {
 
 		equation := EffectiveAddressEquation[rm]
 		displacementValue := binary.LittleEndian.Uint16([]byte{displacementLow, displacementHigh})
-		dest = fmt.Sprintf("[%s + %d]", equation, displacementValue)
+		signed := int16(displacementValue)
+		if signed < 0 {
+			dest = fmt.Sprintf("[%s - %d]", equation, ^signed+1) // remove the sign 1111 1011 -> 0000 0101
+		} else {
+			dest = fmt.Sprintf("[%s + %d]", equation, displacementValue)
+		}
 
 	case RegisterModeFieldEncoding:
 		rmRegisterName := ""
@@ -412,7 +422,13 @@ func moveRegMemToReg(operation byte, d *Decoder) (string, error) {
 			return "", fmt.Errorf("expected to receive the displacement value for the 'Register/memory to/from register' instruction")
 		}
 		equation := EffectiveAddressEquation[rm]
-		effectiveAddress := fmt.Sprintf("[%s + %d]", equation, displacement)
+		signed := int8(displacement)
+		effectiveAddress := ""
+		if signed < 0 {
+			effectiveAddress = fmt.Sprintf("[%s - %d]", equation, ^signed+1) // remove the sign 1111 1011 -> 0000 0101
+		} else {
+			effectiveAddress = fmt.Sprintf("[%s + %d]", equation, displacement)
+		}
 
 		if dir == RegIsDestination {
 			dest = regName
@@ -434,7 +450,13 @@ func moveRegMemToReg(operation byte, d *Decoder) (string, error) {
 
 		equation := EffectiveAddressEquation[rm]
 		displacementValue := binary.LittleEndian.Uint16([]byte{displacementLow, displacementHigh})
-		effectiveAddress := fmt.Sprintf("[%s + %d]", equation, displacementValue)
+		effectiveAddress := ""
+		signed := int16(displacementValue)
+		if signed < 0 {
+			effectiveAddress = fmt.Sprintf("[%s - %d]", equation, ^signed+1) // remove the sign 1111 1011 -> 0000 0101
+		} else {
+			effectiveAddress = fmt.Sprintf("[%s + %d]", equation, displacementValue)
+		}
 
 		if dir == RegIsDestination {
 			dest = regName

@@ -13,6 +13,7 @@ func TestDecoding(t *testing.T) {
 		"./assets/listing_0038_many_register_mov",
 		"./assets/reg-memory-with-displacement",
 		"./assets/listing_0039_more_movs",
+		"./assets/listing_0040_challenge_movs",
 	}
 
 	for _, filename := range files {

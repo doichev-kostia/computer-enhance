@@ -111,14 +111,13 @@ func (d *Decoder) decode() ([]byte, error) {
 		switch {
 		// MOV: Register/memory to/from register
 		case pattern(operation, 0b100010):
-			instruction, err = registerMemoryMove(operation, d)
+			instruction, err = moveRegMemToReg(operation, d)
 		// MOV: immediate to register/memory
 		case pattern(operation, 0b1100011):
 			panic("todo")
 		// MOV: immediate to register
 		case pattern(operation, 0b1011):
-			panic("todo")
-
+			instruction, err = immediateToReg(operation, d)
 		default:
 			panic(fmt.Sprintf("AssertionError: unexpected operation %b", int(operation)))
 		}
@@ -147,45 +146,55 @@ func (d *Decoder) decode() ([]byte, error) {
 // }
 
 // 1011|w|reg  data  data if w = 1
-//
-//	func immediateToReg(operation byte, d *Decoder) (string, error) {
-//		// the & 0b00 is to discard all the other bits and leave the ones we care about
-//		operationType := operation & 0b00001000
-//		isWord := operationType == WordOperation
-//
-//		reg := operation & 0b00000111
-//
-//		immediateValue := 0
-//
-//		if isWord {
-//			low, ok := d.next()
-//			if ok == false {
-//				return "", fmt.Errorf("Expected to get the immediate value (low) for the 'immediate to register' instruction")
-//			}
-//			high, ok := d.next()
-//			if ok == false {
-//				return "", fmt.Errorf("Expected to get the immediate value (high) for the 'immediate to register' instruction")
-//			}
-//
-//		} else {
-//
-//		}
-//	}
+func immediateToReg(operation byte, d *Decoder) (string, error) {
+	// the & 0b00 is to discard all the other bits and leave the ones we care about
+	operationType := (operation >> 3) & 0b00000001
+	verifyOperationType(operationType)
+	isWord := operationType == WordOperation
+
+	reg := operation & 0b00000111
+	regName := ""
+	if isWord {
+		regName = WordOperationRegisterFieldEncoding[reg]
+	} else {
+		regName = ByteOperationRegisterFieldEncoding[reg]
+	}
+
+	immediateValue := 0
+
+	if isWord {
+		low, ok := d.next()
+		if ok == false {
+			return "", fmt.Errorf("expected to get the immediate value (low) for the 'immediate to register' instruction")
+		}
+		high, ok := d.next()
+		if ok == false {
+			return "", fmt.Errorf("expected to get the immediate value (high) for the 'immediate to register' instruction")
+		}
+
+		v := binary.LittleEndian.Uint16([]byte{low, high})
+		immediateValue = int(v)
+	} else {
+		v, ok := d.next()
+		if ok == false {
+			return "", fmt.Errorf("expected to get the immediate value for the 'immediate to register' instruction")
+		}
+		immediateValue = int(v)
+	}
+
+	return fmt.Sprintf("mov %s, %d\n", regName, immediateValue), nil
+}
 
 // 100010dw mod reg r/m disp-lo disp-hi
-func registerMemoryMove(operation byte, d *Decoder) (string, error) {
+func moveRegMemToReg(operation byte, d *Decoder) (string, error) {
 	// direction is the 2nd bit
 	// the & 0b00 is to discard all the other bits and leave the ones we care about
 	dir := (operation >> 1) & 0b00000001
-	if dir != RegIsDestination && dir != RegIsSource {
-		panic(fmt.Sprintf("The direction should be a binary value (dest or src). Got %d instead", dir))
-	}
+	verifyDirection(dir)
 
 	// the & 0b00 is to discard all the other bits and leave the ones we care about
 	operationType := operation & 0b00000001
-	if operationType != WordOperation && operationType != ByteOperation {
-		panic(fmt.Sprintf("The operation type should be a binary value (word or byte). Got %d instead", operationType))
-	}
+	verifyOperationType(operationType)
 	isWord := operationType == WordOperation
 
 	operand, ok := d.next()
@@ -324,6 +333,18 @@ func main() {
 	contents := printHead(filename) + string(decoded)
 
 	fmt.Print(contents)
+}
+
+func verifyOperationType(t byte) {
+	if t != WordOperation && t != ByteOperation {
+		panic(fmt.Sprintf("The operation type should be a binary value (word or byte). Got %d instead", t))
+	}
+}
+
+func verifyDirection(dir byte) {
+	if dir != RegIsDestination && dir != RegIsSource {
+		panic(fmt.Sprintf("The direction should be a binary value (dest or src). Got %d instead", dir))
+	}
 }
 
 func pattern(b byte, pattern byte) bool {

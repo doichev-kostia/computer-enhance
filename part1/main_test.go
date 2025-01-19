@@ -12,6 +12,7 @@ func TestDecoding(t *testing.T) {
 		"./assets/listing_0037_single_register_mov",
 		"./assets/listing_0038_many_register_mov",
 		"./assets/reg-memory-with-displacement",
+		"./assets/listing_0039_more_movs",
 	}
 
 	for _, filename := range files {
@@ -27,9 +28,9 @@ func TestDecoding(t *testing.T) {
 			defer func() {
 				if r := recover(); r != nil {
 					if len(decoder.decoded) > 0 {
-						t.Logf("Partial decoded contents:\n%s", decoder.decoded)
+						t.Logf("(%s) Partial decoded contents:\n%s", filename, decoder.decoded)
 					}
-					t.Fatalf("Panic occurred: %v", r)
+					t.Fatalf("Panic occurred when processing %s: %v", filename, r)
 				}
 			}()
 

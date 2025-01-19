@@ -12,10 +12,15 @@ import (
 
 // Instruction reference for 8086 CPU (https://edge.edx.org/c4x/BITSPilani/EEE231/asset/8086_family_Users_Manual_1_.pdf | page 161(pdf))
 // The "Instruction reference"👆
-// [opcode|d|m] [mod|reg|r/m]
+// [opcode|d|m] [mod|reg|r/m] [displacement-low] [displacement-high] [data-low] [data-high]
 //    6    1 1    2   3   3
+// The intel x86 processors use Little Endian, so the low byte comes first
+// Disp-lo (Displacement low) - Low-order byte of optional 8- or 16-bit __unsigned__ displacement; MOD indicates if present.
+// Disp-hi (Displacement High) - High-order byte of optional 16-bit __unsigned__ displacement; MOD indicates if present.
+// Data-lo (Data low) - Low-order byte of 16-bit immediate constant.
+// Data-hi (Data high) - High-order byte of 16-bit immediate constant.
 
-// Direction of the operation (the d bit)
+// D bit - Direction of the operation
 const (
 	RegIsSource      = 0
 	RegIsDestination = 1
@@ -26,6 +31,40 @@ const (
 	ByteOperation = byte(0)
 	WordOperation = byte(1)
 )
+
+// S field
+const (
+	NoSignExtension = byte(0)
+	SignExtension   = byte(1)
+)
+
+// MOD field
+//
+// The MOD field indicates how many displacement bytes are present.
+// Following Intel convention, if the displacement is two bytes,
+// the most-significant byte is stored second in the instruction. (Little Endian)
+// If the displacement is only a single byte, the 8086 or 8088 __automatically sign-extends__ (section 2.8, page 2-68)
+// this quantity to 16-bits before using the information in further address calculations.
+// Immediate values __always__ follow any displacement values that __may__ be present. (data-low, data-high)
+// The second byte of a two-byte immediate value is the most significant. (Little Endian)
+const (
+	MemoryModeNoDisplacementFieldEncoding = 0b00
+	MemoryMode8DisplacementFieldEncoding  = 0b01
+	MemoryMode16DisplacementFieldEncoding = 0b10
+	RegisterModeFieldEncoding             = 0b11
+)
+
+// REG (Register) field encoding - ByteOperationRegisterFieldEncoding & WordOperationRegisterFieldEncoding
+// | REG | W = 0 | W = 1|
+// ---------------------
+// | 000 | AL    | AX   |
+// | 001 | CL    | CX   |
+// | 010 | DL    | DX   |
+// | 011 | BL    | BX   |
+// | 100 | AH    | SP   |
+// | 101 | CH    | BP   |
+// | 110 | DH    | SI   |
+// | 111 | BH    | DI   |
 
 var ByteOperationRegisterFieldEncoding = map[byte]string{
 	0b000: "al",
@@ -51,6 +90,7 @@ var WordOperationRegisterFieldEncoding = map[byte]string{
 
 // EffectiveAddressEquation based on the r/m (Register/Memory) field encoding
 // Table 4-10 in "Instruction reference"
+// r/m: equation
 var EffectiveAddressEquation = map[byte]string{
 	0b000: "bx + si",
 	0b001: "bx + di",
@@ -58,20 +98,8 @@ var EffectiveAddressEquation = map[byte]string{
 	0b011: "bp + di",
 	0b100: "si",
 	0b101: "di",
-	0b110: "bp",
+	0b110: "bp", // If MOD = 00, then it's a Direct Address
 	0b111: "bx",
-}
-
-// MOD
-const (
-	MemoryModeNoDisplacementFieldEncoding = 0b00
-	MemoryMode8DisplacementFieldEncoding  = 0b01
-	MemoryMode16DisplacementFieldEncoding = 0b10
-	RegisterModeFieldEncoding             = 0b11
-)
-
-func printHead(filename string) string {
-	return fmt.Sprintf("; %s\nbits 16\n\n", filename)
 }
 
 type Decoder struct {
@@ -119,6 +147,14 @@ func (d *Decoder) decode() ([]byte, error) {
 		// MOV: immediate to register
 		case pattern(operation, 0b1011):
 			instruction, err = immediateToReg(operation, d)
+		// MOV: memory to accumulator
+		case pattern(operation, 0b1010000):
+			panic("TODO: memory to accumulator")
+
+		// MOV: accumulator to memory
+		case pattern(operation, 0b1010001):
+			panic("TODO: accumulator to memory")
+
 		default:
 			panic(fmt.Sprintf("AssertionError: unexpected operation %b", int(operation)))
 		}
@@ -456,6 +492,10 @@ func main() {
 	contents := printHead(filename) + string(decoded)
 
 	fmt.Print(contents)
+}
+
+func printHead(filename string) string {
+	return fmt.Sprintf("; %s\nbits 16\n\n", filename)
 }
 
 func verifyOperationType(t byte) {

@@ -1,6 +1,8 @@
 
 ## assembling
-`nasm ./listingxxx.asm`
+`ls ./assets/ | grep .asm | xargs -P 4 -I {} ./assemble.fish ./assets/{}`
+or
+`./assemble.fish ./assets/<filename>.asm`
 
 ## running
 `go run ./main.go ./listingxxx`

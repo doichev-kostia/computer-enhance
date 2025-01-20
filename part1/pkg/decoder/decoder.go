@@ -137,40 +137,33 @@ func (d *Decoder) Decode() ([]byte, error) {
 
 		// Opcode
 		switch {
-		case matchPattern("MOV: Register/memory to/from register", operation, "0b100010dw"):
+		case d.matchPattern("MOV: Register/memory to/from register", operation, "0b100010dw"):
 			instruction, err = moveRegMemToReg(operation, d)
-		case matchPattern("MOV: immediate to register/memory", operation, "0b1100011w"):
+		case d.matchPattern("MOV: immediate to register/memory", operation, "0b1100011w"):
 			instruction, err = moveImmediateToRegOrMem(operation, d)
-		case matchPattern("MOV: immediate to register", operation, "0b1011wreg"):
+		case d.matchPattern("MOV: immediate to register", operation, "0b1011wreg"):
 			instruction, err = moveImmediateToReg(operation, d)
-		case matchPattern("MOV: memory to accumulator", operation, "0b1010000w"):
+		case d.matchPattern("MOV: memory to accumulator", operation, "0b1010000w"):
 			instruction, err = moveMemoryToAccumulator(operation, d)
-		case matchPattern("MOV: accumulator to memory", operation, "0b1010001w"):
+		case d.matchPattern("MOV: accumulator to memory", operation, "0b1010001w"):
 			instruction, err = moveAccumulatorToMemory(operation, d)
-		case matchPattern("ADD: Reg/memory with register to either", operation, "0b000000dw"):
+		case d.matchPattern("ADD: Reg/memory with register to either", operation, "0b000000dw"):
 			instruction, err = addRegOrMemWithReg(operation, d)
-		case matchPattern("Immediate to register/memory", operation, "0b100000sw"):
-			operand, ok := d.peek()
-			if ok != true {
-				panic("Immediate to register/memory requires 2 bytes")
-			}
-			switch {
-			case matchPattern("ADD: Immediate to register/memory", operand, "0bmod000rm"):
-				instruction, err = addImmediateToRegOrMem(operation, d)
-			case matchPattern("SUB: Immediate to register/memory", operand, "0bmod101rm"):
-				panic("TODO: SUB: immediate from register/memory")
-			case matchPattern("CMP: immediate with register/memory", operation, "0bmod111rm"):
-				panic("TODO: CMP: immediate with register/memory")
-			}
-		case matchPattern("ADD: Immediate to accumulator", operation, "0b0000010w"):
+		case d.matchPattern("ADD: Immediate to register/memory", operation, "0b100000sw|0b__000___"):
+			instruction, err = addImmediateToRegOrMem(operation, d)
+		case d.matchPattern("ADD: Immediate to accumulator", operation, "0b0000010w"):
 			instruction, err = addImmediateToAccumulator(operation, d)
-		case matchPattern("SUB: Reg/memory and register to either", operation, "0b001010dw"):
+		case d.matchPattern("SUB: Reg/memory and register to either", operation, "0b001010dw"):
 			panic("TODO: SUB: Reg/memory and register to either")
-		case matchPattern("SUB: immediate from accumulator", operation, "0b0010110w"):
+		case d.matchPattern("SUB: Immediate to register/memory", operation, "0b100000sw|0b__101___"):
+			panic("TODO: SUB: immediate from register/memory")
+		case d.matchPattern("SUB: immediate from accumulator", operation, "0b0010110w"):
 			panic("TODO: SUB: immediate from accumulator")
-		case matchPattern("CMP: Reg/memory and register", operation, "0b001110dw"):
+		case d.matchPattern("CMP: Reg/memory and register", operation, "0b001110dw"):
 			panic("TODO: CMP: Reg/memory and register")
-		case matchPattern("CMP: immediate from accumulator", operation, "0b0011110w"):
+		case d.matchPattern("CMP: immediate with register/memory", operation, "0b100000sw|0b__111___"):
+			panic("TODO: CMP: immediate with register/memory")
+		case d.matchPattern("CMP: immediate from accumulator", operation, "0b0011110w"):
 			panic("TODO: CMP: immediate from accumulator")
 		default:
 			panic(fmt.Sprintf("AssertionError: unexpected operation %b", int(operation)))
@@ -196,7 +189,7 @@ func (d *Decoder) next() (byte, bool) {
 	}
 }
 
-func (d *Decoder) peek() (byte, bool) {
+func (d *Decoder) peekNext() (byte, bool) {
 	if len(d.bytes) > d.pos {
 		return d.bytes[d.pos], true
 	} else {
@@ -204,33 +197,64 @@ func (d *Decoder) peek() (byte, bool) {
 	}
 }
 
+// 1 - next char
+func (d *Decoder) peekForward(offset int) (byte, bool) {
+	pos := 0
+	if offset == 1 {
+		pos = d.pos
+	} else {
+		pos = d.pos + offset
+	}
+
+	if len(d.bytes) > pos {
+		return d.bytes[pos], true
+	} else {
+		return 0, false
+	}
+}
+
 // pattern - 0b10011dwx, where any char except 0 or 1 is a wildcard
-func matchPattern(name string, b byte, pattern string) bool {
+// can contain several bytes 0b10011dwx|0b__111___
+func (d *Decoder) matchPattern(name string, candidate byte, pattern string) bool {
 	const prefix = "0b"
+	const separator = "|"
 
-	if !strings.HasPrefix(pattern, prefix) {
-		panic(fmt.Errorf("pattern for '%s' must start with '0b'", name))
-	}
+	bytePatterns := strings.Split(pattern, separator)
 
-	pattern = pattern[len(prefix):] // 0b
-
-	if len(pattern) != 8 {
-		panic(fmt.Errorf("pattern for '%s' must be 8 bits long", name))
-	}
-
-	for i, ch := range pattern {
-		if ch != '0' && ch != '1' {
-			continue
+	for i, p := range bytePatterns {
+		if !strings.HasPrefix(p, prefix) {
+			panic(fmt.Errorf("pattern for '%s' must start with '0b'", name))
 		}
 
-		offset := 7 - i
-		bit := (b >> offset) & 0b1
+		p = p[len(prefix):] // 0b
 
-		if bit == 1 && ch != '1' {
-			return false
+		if len(p) != 8 {
+			panic(fmt.Errorf("pattern for '%s' must be 8 bits long", name))
 		}
-		if bit == 0 && ch != '0' {
-			return false
+
+		b := candidate
+		if i > 0 {
+			var ok bool
+			b, ok = d.peekForward(i + 1)
+			if ok == false {
+				return false
+			}
+		}
+
+		for offset, ch := range p {
+			if ch != '0' && ch != '1' {
+				continue
+			}
+
+			shift := 7 - offset
+			bit := (b >> shift) & 0b1
+
+			if bit == 1 && ch != '1' {
+				return false
+			}
+			if bit == 0 && ch != '0' {
+				return false
+			}
 		}
 	}
 

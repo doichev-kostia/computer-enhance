@@ -1,4 +1,4 @@
-package main
+package decoder
 
 import (
 	"fmt"
@@ -9,12 +9,12 @@ import (
 
 func TestDecoding(t *testing.T) {
 	files := []string{
-		"./assets/listing_0037_single_register_mov",
-		"./assets/listing_0038_many_register_mov",
-		"./assets/reg-memory-with-displacement",
-		"./assets/listing_0039_more_movs",
-		"./assets/signed-displacement",
-		"./assets/listing_0040_challenge_movs",
+		"../../assets/listing_0037_single_register_mov",
+		"../../assets/listing_0038_many_register_mov",
+		"../../assets/reg-memory-with-displacement",
+		"../../assets/listing_0039_more_movs",
+		"../../assets/signed-displacement",
+		"../../assets/listing_0040_challenge_movs",
 	}
 
 	for _, filename := range files {
@@ -23,7 +23,7 @@ func TestDecoding(t *testing.T) {
 			t.Errorf("%s = %v", filename, err)
 		}
 
-		decoder := newDecoder(source)
+		decoder := NewDecoder(source)
 		var contents []byte
 
 		func() {
@@ -37,7 +37,7 @@ func TestDecoding(t *testing.T) {
 			}()
 
 			var err error
-			contents, err = decoder.decode()
+			contents, err = decoder.Decode()
 			if err != nil {
 				t.Errorf("%s = %v", filename, err)
 			}

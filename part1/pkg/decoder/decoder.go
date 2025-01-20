@@ -121,6 +121,10 @@ func NewDecoder(bytes []byte) *Decoder {
 	}
 }
 
+func (d *Decoder) GetDecoded() []byte {
+	return d.decoded
+}
+
 func (d *Decoder) Decode() ([]byte, error) {
 	d.pos = 0
 	for {

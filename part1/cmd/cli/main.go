@@ -24,15 +24,32 @@ func main() {
 	}
 
 	d := decoder.NewDecoder(bytes)
-	decoded, err := d.Decode()
+	var contents []byte
+
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				if len(d.GetDecoded()) > 0 {
+					fmt.Printf("(%s) Partial decoded contents:\n%s", filename, d.GetDecoded())
+				}
+				panic(fmt.Errorf("panic occurred when processing %s; error = %v", filename, r))
+			}
+		}()
+
+		var err error
+		contents, err = d.Decode()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s = %v", filename, err)
+		}
+	}()
 
 	if err != nil {
 		exit(err)
 	}
 
-	contents := printHead(filename) + string(decoded)
+	asm := printHead(filename) + string(contents)
 
-	fmt.Print(contents)
+	fmt.Print(asm)
 }
 
 func printHead(filename string) string {

@@ -126,36 +126,109 @@ func (d *Decoder) Decode() ([]byte, error) {
 			break
 		}
 
-		// Opcode
+		// Table 4-12. 8086 Instruction Encoding
 		switch {
+		// MOV
 		case d.matchPattern("MOV: Register/memory to/from register", operation, "0b100010dw"):
 			instruction, err = moveRegMemToReg(operation, d)
-		case d.matchPattern("MOV: immediate to register/memory", operation, "0b1100011w"):
+		case d.matchPattern("MOV: Immediate to register/memory", operation, "0b1100011w"):
 			instruction, err = moveImmediateToRegOrMem(operation, d)
-		case d.matchPattern("MOV: immediate to register", operation, "0b1011wreg"):
+		case d.matchPattern("MOV: Immediate to register", operation, "0b1011wreg"):
 			instruction, err = moveImmediateToReg(operation, d)
-		case d.matchPattern("MOV: memory to accumulator", operation, "0b1010000w"):
+		case d.matchPattern("MOV: Memory to accumulator", operation, "0b1010000w"):
 			instruction, err = moveMemoryToAccumulator(operation, d)
-		case d.matchPattern("MOV: accumulator to memory", operation, "0b1010001w"):
+		case d.matchPattern("MOV: Accumulator to memory", operation, "0b1010001w"):
 			instruction, err = moveAccumulatorToMemory(operation, d)
+
+		// ADD
 		case d.matchPattern("ADD: Reg/memory with register to either", operation, "0b000000dw"):
 			instruction, err = addRegOrMemToReg(operation, d)
 		case d.matchPattern("ADD: Immediate to register/memory", operation, "0b100000sw|0b__000___"):
 			instruction, err = addImmediateToRegOrMem(operation, d)
 		case d.matchPattern("ADD: Immediate to accumulator", operation, "0b0000010w"):
 			instruction, err = addImmediateToAccumulator(operation, d)
+
+		// SUB
 		case d.matchPattern("SUB: Reg/memory and register to either", operation, "0b001010dw"):
 			instruction, err = subRegOrMemFromReg(operation, d)
 		case d.matchPattern("SUB: Immediate to register/memory", operation, "0b100000sw|0b__101___"):
 			instruction, err = subImmediateFromRegOrMem(operation, d)
-		case d.matchPattern("SUB: immediate from accumulator", operation, "0b0010110w"):
+		case d.matchPattern("SUB: Immediate from accumulator", operation, "0b0010110w"):
 			instruction, err = subImmediateFromAccumulator(operation, d)
+
+		// CMP
 		case d.matchPattern("CMP: Reg/memory and register", operation, "0b001110dw"):
 			instruction, err = cmpRegOrMemWithReg(operation, d)
-		case d.matchPattern("CMP: immediate with register/memory", operation, "0b100000sw|0b__111___"):
+		case d.matchPattern("CMP: Immediate with register/memory", operation, "0b100000sw|0b__111___"):
 			instruction, err = cmpImmediateWithRegOrMem(operation, d)
-		case d.matchPattern("CMP: immediate from accumulator", operation, "0b0011110w"):
+		case d.matchPattern("CMP: Immediate from accumulator", operation, "0b0011110w"):
 			instruction, err = cmpImmediateWithAccumulator(operation, d)
+
+		// JMP (unconditional)
+		case d.matchPattern("JMP: Direct within segment", operation, "0b11101001"):
+			panic("TODO: JMP: Direct within segment")
+		case d.matchPattern("JMP: Direct within segment-short", operation, "0b11101011"):
+			panic("TODO: JMP: Direct within segment-short")
+		case d.matchPattern("JMP: Indirect within segment", operation, "0b11111111|0b__100___"):
+			panic("TODO: JMP: Indirect within segment")
+		case d.matchPattern("JMP: Direct intersegment", operation, "0b11101010"):
+			panic("TODO: JMP: Direct intersegment")
+		case d.matchPattern("JMP: Indirect intersegment", operation, "0b11111111|0b__101___"):
+			panic("TODO: JMP: Indirect intersegment")
+
+		// RET
+		case d.matchPattern("RET: Within segment", operation, "0b11000011"):
+			panic("TODO: RET: Within segment")
+		case d.matchPattern("RET: Within seg adding immed to SP", operation, "0b11000010"):
+			panic("TODO: RET: Within seg adding immed to SP")
+		case d.matchPattern("RET: Intersegment", operation, "0b11001011"):
+			panic("TODO: RET: Intersegment")
+		case d.matchPattern("RET: Intersegment adding immediate to SP", operation, "0b11001010"):
+			panic("TODO: RET: Intersegment adding immediate to SP")
+
+		// Jumps
+		case d.matchPattern("JE/JZ: Jump on equal/zero", operation, "0b01110100"):
+			panic("TODO: JE/JZ: Jump on equal/zero")
+		case d.matchPattern("JL/JNGE: Jump on less/not greater or equal", operation, "0b01111100"):
+			panic("TODO: JL/JNGE: Jump on less/not greater or equal")
+		case d.matchPattern("JLE/JNG: Jump on less or equal/not greater", operation, "0b01111110"):
+			panic("TODO: JLE/JNG: Jump on less or equal/not greater")
+		case d.matchPattern("JB/JNAE: Jump on below/not above or equal", operation, "0b01110010"):
+			panic("TODO: JB/JNAE: Jump on below/not above or equal")
+		case d.matchPattern("JBE/JNA: Jump on below or equal/not above", operation, "0b01110110"):
+			panic("TODO: JBE/JNA: Jump on below or equal/not above")
+		case d.matchPattern("JP/JPE: Jump on parity/even", operation, "0b01111010"):
+			panic("TODO: JP/JPE: Jump on parity/even")
+		case d.matchPattern("JO: Jump on overflow", operation, "0b01110000"):
+			panic("TODO: JO: Jump on overflow")
+		case d.matchPattern("JS: Jump on sign", operation, "0b01111000"):
+			panic("TODO: JS: Jump on sign")
+		case d.matchPattern("JNE/JNZ: Jump on not equal/not zero", operation, "0b01110101"):
+			panic("TODO: JNE/JNZ: Jump on not equal/not zero")
+		case d.matchPattern("JNL/JGE: Jump on not less/greater or equal", operation, "0b01111101"):
+			panic("TODO: JNL/JGE: Jump on not less/greater or equal")
+		case d.matchPattern("JNLE/JG: Jump on not less nor equal/greater", operation, "0b011111111"):
+			panic("TODO: JNLE/JG: Jump on not less nor equal/greater")
+		case d.matchPattern("JNB/JAE: Jump on not below/above or equal", operation, "0b01110011"):
+			panic("TODO: JNB/JAE: Jump on not below/above or equal")
+		case d.matchPattern("JNBE/JA: Jump on not below nor equal/above", operation, "0b01110111"):
+			panic("TODO: JNBE/JA: Jump on not below nor equal/above")
+		case d.matchPattern("JNP/JPO: Jump on not parity/odd", operation, "0b01111011"):
+			panic("TODO: JNP/JPO: Jump on not parity/odd")
+		case d.matchPattern("JNO: Jump on not overflow", operation, "0b01110001"):
+			panic("TODO: JNO: Jump on not overflow")
+		case d.matchPattern("JNS: Jump on not sign", operation, "0b01111001"):
+			panic("TODO: JNS: Jump on not sign")
+		case d.matchPattern("JCXZ: Jump if CX register is zero", operation, "0b11100011"):
+			panic("TODO: JCXZ: Jump if CX register is zero")
+
+		// Loops
+		case d.matchPattern("LOOP: Loop CX times", operation, "0b11100010"):
+			panic("TODO: LOOP: Loop CX times")
+		case d.matchPattern("LOOPZ/LOOPE: Loop while zero/equal", operation, "0b11100001"):
+			panic("TODO: LOOPZ/LOOPE: Loop while zero/equal")
+		case d.matchPattern("LOOPNZ/LOOPNE: Loop while not zero/not equal", operation, "0b11100000"):
+			panic("TODO: LOOPNZ/LOOPNE: Loop while not zero/not equal")
 		default:
 			panic(fmt.Sprintf("AssertionError: unexpected operation %b", int(operation)))
 		}

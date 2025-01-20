@@ -1,8 +1,10 @@
 package decoder
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
+	"strconv"
 )
 
 // Instruction reference for 8086 CPU (https://edge.edx.org/c4x/BITSPilani/EEE231/asset/8086_family_Users_Manual_1_.pdf | page 161(pdf))
@@ -14,6 +16,14 @@ import (
 // Disp-hi (Displacement High) - High-order byte of optional 16-bit __unsigned__ displacement; MOD indicates if present.
 // Data-lo (Data low) - Low-order byte of 16-bit immediate constant.
 // Data-hi (Data high) - High-order byte of 16-bit immediate constant.
+
+// Common pattern
+//
+// |  op  | pattern |
+// ------------------
+// | ADD  | 000     |
+// | SUB  | 101     |
+// | CMP  | 111     |
 
 // D bit - Direction of the operation
 const (
@@ -138,6 +148,15 @@ func (d *Decoder) Decode() ([]byte, error) {
 		// MOV: accumulator to memory
 		case pattern(operation, 0b1010001):
 			instruction, err = moveAccumulatorToMemory(operation, d)
+		// ADD: Reg/ memory with register to either
+		case pattern(operation, 0b000000):
+			instruction, err = addRegOrMemWithReg(operation, d)
+		// ADD: Immediate to register/memory
+		case pattern(operation, 0b100000):
+			instruction, err = addImmediateToRegOrMem(operation, d)
+		// ADD: Immediate to accumulator
+		case pattern(operation, 0b0000010):
+			instruction, err = addImmediateToAccumulator(operation, d)
 
 		default:
 			panic(fmt.Sprintf("AssertionError: unexpected operation %b", int(operation)))
@@ -171,6 +190,174 @@ func pattern(b byte, pattern byte) bool {
 	v := b >> remainder
 
 	return v == pattern
+}
+
+// [mod|reg|r/m]
+func (d *Decoder) decodeRegOrMem(instructionName string, mod byte, reg byte, rm byte, isWord bool, dir byte) (dest string, src string, err error) {
+	verifyDirection(dir)
+	regName := ""
+	if isWord {
+		regName = WordOperationRegisterFieldEncoding[reg]
+	} else {
+		regName = ByteOperationRegisterFieldEncoding[reg]
+	}
+
+	// MOV dest, src
+	// ADD dest, src
+	dest = ""
+	src = ""
+
+	switch mod {
+	case MemoryModeNoDisplacementFieldEncoding:
+		equation := ""
+		// the exception for the direct address - 16-bit displacement for the direct address
+		if rm == 0b110 {
+			displacementLow, ok := d.next()
+			if ok == false {
+				return dest, src, fmt.Errorf("expected to receive the Low displacement value for direct address in the '%s' instruction", instructionName)
+			}
+			displacementHigh, ok := d.next()
+			if ok == false {
+				return dest, src, fmt.Errorf("expected to receive the High displacement value for direct address in the '%s' instruction", instructionName)
+			}
+			displacementValue := binary.LittleEndian.Uint16([]byte{displacementLow, displacementHigh})
+			equation = strconv.Itoa(int(displacementValue))
+		} else {
+			equation = EffectiveAddressEquation[rm]
+		}
+
+		effectiveAddress := fmt.Sprintf("[%s]", equation)
+
+		if dir == RegIsDestination {
+			dest = regName
+			src = effectiveAddress
+		} else {
+			dest = effectiveAddress
+			src = regName
+		}
+
+	case MemoryMode8DisplacementFieldEncoding:
+		displacement, ok := d.next()
+		if ok == false {
+			return dest, src, fmt.Errorf("expected to receive the displacement value for the '%s' instruction", instructionName)
+		}
+		equation := EffectiveAddressEquation[rm]
+		signed := int8(displacement)
+		effectiveAddress := ""
+		if signed < 0 {
+			effectiveAddress = fmt.Sprintf("[%s - %d]", equation, ^signed+1) // remove the sign 1111 1011 -> 0000 0101
+		} else {
+			effectiveAddress = fmt.Sprintf("[%s + %d]", equation, displacement)
+		}
+
+		if dir == RegIsDestination {
+			dest = regName
+			src = effectiveAddress
+		} else {
+			dest = effectiveAddress
+			src = regName
+		}
+
+	case MemoryMode16DisplacementFieldEncoding:
+		displacementLow, ok := d.next()
+		if ok == false {
+			return dest, src, fmt.Errorf("expected to receive the Low displacement value for the '%s' instruction", instructionName)
+		}
+		displacementHigh, ok := d.next()
+		if ok == false {
+			return dest, src, fmt.Errorf("expected to receive the High displacement value for the '%s' instruction", instructionName)
+		}
+
+		equation := EffectiveAddressEquation[rm]
+		displacementValue := binary.LittleEndian.Uint16([]byte{displacementLow, displacementHigh})
+		effectiveAddress := ""
+		signed := int16(displacementValue)
+		if signed < 0 {
+			effectiveAddress = fmt.Sprintf("[%s - %d]", equation, ^signed+1) // remove the sign 1111 1011 -> 0000 0101
+		} else {
+			effectiveAddress = fmt.Sprintf("[%s + %d]", equation, displacementValue)
+		}
+
+		if dir == RegIsDestination {
+			dest = regName
+			src = effectiveAddress
+		} else {
+			dest = effectiveAddress
+			src = regName
+		}
+
+	case RegisterModeFieldEncoding:
+		rmRegisterName := ""
+		if isWord {
+			rmRegisterName = WordOperationRegisterFieldEncoding[rm]
+		} else {
+			rmRegisterName = ByteOperationRegisterFieldEncoding[rm]
+		}
+
+		if dir == RegIsDestination {
+			dest = regName
+			src = rmRegisterName
+		} else {
+			dest = rmRegisterName
+			src = regName
+		}
+	default:
+		panic("The mod field should only be 2 bits")
+	}
+
+	return dest, src, nil
+}
+
+// [xxx|w] [data-lo] [data-hi]
+func (d *Decoder) decodeImmediate(instructionName string, isWord bool) (immediateValue uint16, err error) {
+	immediateValue = uint16(0)
+
+	if isWord {
+		low, ok := d.next()
+		if ok == false {
+			return 0, fmt.Errorf("expected to get the immediate value (low) for the '%s' instruction", instructionName)
+		}
+		high, ok := d.next()
+		if ok == false {
+			return 0, fmt.Errorf("expected to get the immediate value (high) for the '%s' instruction", instructionName)
+		}
+
+		immediateValue = binary.LittleEndian.Uint16([]byte{low, high})
+	} else {
+		v, ok := d.next()
+		if ok == false {
+			return 0, fmt.Errorf("expected to get the immediate value for the '%s' instruction", instructionName)
+		}
+		immediateValue = uint16(v)
+	}
+
+	return immediateValue, nil
+}
+
+// [xxx|w] [addr-lo] [addr-hi]
+func (d *Decoder) decodeAddress(instructionName string, isWord bool) (address uint16, err error) {
+	address = uint16(0)
+
+	if isWord {
+		low, ok := d.next()
+		if ok == false {
+			return 0, fmt.Errorf("expected to get the address (low) for the '%s' instruction", instructionName)
+		}
+		high, ok := d.next()
+		if ok == false {
+			return 0, fmt.Errorf("expected to get the address (high) for the '%s' instruction", instructionName)
+		}
+
+		address = binary.LittleEndian.Uint16([]byte{low, high})
+	} else {
+		v, ok := d.next()
+		if ok == false {
+			return 0, fmt.Errorf("expected to get the address for the '%s' instruction", instructionName)
+		}
+		address = uint16(v)
+	}
+
+	return address, nil
 }
 
 func verifyOperationType(t byte) {

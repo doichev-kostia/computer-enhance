@@ -23,3 +23,6 @@ MOD – 2 bits. "Mode" field indicates whether one of the operands is in memory 
 REG - 3 bits. "Register" field identifies a register that is one of the instruction operands
 R/M - 3 bits. "Register/Memory" field. If the MOD field indicates that the operand is in memory, the R/M field
 identifies the memory location. If the MOD field indicates that both operands are in registers, the R/M field identifies the second register.
+
+homework
+https://github.com/cmuratori/computer_enhance/tree/main/perfaware/part1

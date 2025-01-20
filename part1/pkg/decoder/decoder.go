@@ -119,6 +119,7 @@ func (d *Decoder) GetDecoded() []byte {
 func (d *Decoder) Decode() ([]byte, error) {
 	d.pos = 0
 	for {
+		// Section 2.7 Instruction set. p. 2-30
 		instruction := ""
 		var err error
 		operation, ok := d.next()

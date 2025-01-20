@@ -3,8 +3,8 @@ package decoder
 import (
 	"encoding/binary"
 	"fmt"
-	"math"
 	"strconv"
+	"strings"
 )
 
 // Instruction reference for 8086 CPU (https://edge.edx.org/c4x/BITSPilani/EEE231/asset/8086_family_Users_Manual_1_.pdf | page 161(pdf))
@@ -40,7 +40,7 @@ const (
 // S field
 const (
 	NoSignExtension = byte(0)
-	SignExtension   = byte(1)
+	SignExtension   = byte(1) // Sign extend 8-bit immediate data to 16 bits if W=1
 )
 
 // MOD field
@@ -133,29 +133,21 @@ func (d *Decoder) Decode() ([]byte, error) {
 
 		// Opcode
 		switch {
-		// MOV: Register/memory to/from register
-		case pattern(operation, 0b100010):
+		case matchPattern("MOV: Register/memory to/from register", operation, "0b100010dw"):
 			instruction, err = moveRegMemToReg(operation, d)
-		// MOV: immediate to register/memory
-		case pattern(operation, 0b1100011):
+		case matchPattern("MOV: immediate to register/memory", operation, "0b1100011w"):
 			instruction, err = moveImmediateToRegOrMem(operation, d)
-		// MOV: immediate to register
-		case pattern(operation, 0b1011):
+		case matchPattern("MOV: immediate to register", operation, "0b1011wreg"):
 			instruction, err = moveImmediateToReg(operation, d)
-		// MOV: memory to accumulator
-		case pattern(operation, 0b1010000):
+		case matchPattern("MOV: memory to accumulator", operation, "0b1010000w"):
 			instruction, err = moveMemoryToAccumulator(operation, d)
-		// MOV: accumulator to memory
-		case pattern(operation, 0b1010001):
+		case matchPattern("MOV: accumulator to memory", operation, "0b1010001w"):
 			instruction, err = moveAccumulatorToMemory(operation, d)
-		// ADD: Reg/ memory with register to either
-		case pattern(operation, 0b000000):
+		case matchPattern("ADD: Reg/memory with register to either", operation, "0b000000dw"):
 			instruction, err = addRegOrMemWithReg(operation, d)
-		// ADD: Immediate to register/memory
-		case pattern(operation, 0b100000):
+		case matchPattern("ADD: Immediate to register/memory", operation, "0b100000sw"):
 			instruction, err = addImmediateToRegOrMem(operation, d)
-		// ADD: Immediate to accumulator
-		case pattern(operation, 0b0000010):
+		case matchPattern("ADD: Immediate to accumulator", operation, "0b0000010w"):
 			instruction, err = addImmediateToAccumulator(operation, d)
 
 		default:
@@ -182,14 +174,37 @@ func (d *Decoder) next() (byte, bool) {
 	}
 }
 
-func pattern(b byte, pattern byte) bool {
-	// 0b100010 -> 6 bits
-	// 0b1011 -> 4 bits
-	bits := int(math.Trunc(math.Log2(float64(pattern))) + 1)
-	remainder := 8 - bits
-	v := b >> remainder
+// pattern - 0b10011dwx, where any char except 0 or 1 is a wildcard
+func matchPattern(name string, b byte, pattern string) bool {
+	const prefix = "0b"
 
-	return v == pattern
+	if !strings.HasPrefix(pattern, prefix) {
+		panic(fmt.Errorf("pattern for '%s' must start with '0b'", name))
+	}
+
+	pattern = pattern[len(prefix):] // 0b
+
+	if len(pattern) != 8 {
+		panic(fmt.Errorf("pattern for '%s' must be 8 bits long", name))
+	}
+
+	for i, ch := range pattern {
+		if ch != '0' && ch != '1' {
+			continue
+		}
+
+		offset := 7 - i
+		bit := (b >> offset) & 0b1
+
+		if bit == 1 && ch != '1' {
+			return false
+		}
+		if bit == 0 && ch != '0' {
+			return false
+		}
+	}
+
+	return true
 }
 
 // [mod|reg|r/m]
@@ -308,7 +323,88 @@ func (d *Decoder) decodeRegOrMem(instructionName string, mod byte, reg byte, rm 
 	return dest, src, nil
 }
 
-// [xxx|w] [data-lo] [data-hi]
+// [xxx|w] [mod|000|r/m] [disp-lo] [disp-hi] [data-lo] [data-hi]
+func (d *Decoder) decodeImmediateToRegOrMem(instructionName string, mod byte, reg byte, rm byte, isWord bool) (dest string, err error) {
+	// must be 000 according to the "Instruction reference"
+	if reg != 0 {
+		return "", fmt.Errorf("expected the reg field to be 000 for the '%s' instruction", instructionName)
+	}
+
+	// mov dest, immediateValue
+	// add dest, immediateValue
+	dest = ""
+
+	switch mod {
+	case MemoryModeNoDisplacementFieldEncoding:
+		equation := ""
+		// the exception for the direct address - 16-bit displacement for the direct address
+		if rm == 0b110 {
+			displacementLow, ok := d.next()
+			if ok == false {
+				return "", fmt.Errorf("expected to receive the Low displacement value for direct address in the '%s' instruction", instructionName)
+			}
+			displacementHigh, ok := d.next()
+			if ok == false {
+				return "", fmt.Errorf("expected to receive the High displacement value for direct address in the '%s' instruction", instructionName)
+			}
+			displacementValue := binary.LittleEndian.Uint16([]byte{displacementLow, displacementHigh})
+			equation = strconv.Itoa(int(displacementValue))
+		} else {
+			equation = EffectiveAddressEquation[rm]
+		}
+
+		dest = fmt.Sprintf("[%s]", equation)
+
+	case MemoryMode8DisplacementFieldEncoding:
+		displacement, ok := d.next()
+		if ok == false {
+			return "", fmt.Errorf("expected to receive the displacement value for the '%s' instruction", instructionName)
+		}
+		equation := EffectiveAddressEquation[rm]
+		signed := int8(displacement)
+		if signed < 0 {
+			dest = fmt.Sprintf("[%s - %d]", equation, ^signed+1) // remove the sign 1111 1011 -> 0000 0101
+		} else {
+			dest = fmt.Sprintf("[%s + %d]", equation, displacement)
+		}
+
+	case MemoryMode16DisplacementFieldEncoding:
+		displacementLow, ok := d.next()
+		if ok == false {
+			return "", fmt.Errorf("expected to receive the Low displacement value for the '%s' instruction", instructionName)
+		}
+		displacementHigh, ok := d.next()
+		if ok == false {
+			return "", fmt.Errorf("expected to receive the High displacement value for the '%s' instruction", instructionName)
+		}
+
+		equation := EffectiveAddressEquation[rm]
+		displacementValue := binary.LittleEndian.Uint16([]byte{displacementLow, displacementHigh})
+		signed := int16(displacementValue)
+		if signed < 0 {
+			dest = fmt.Sprintf("[%s - %d]", equation, ^signed+1) // remove the sign 1111 1011 -> 0000 0101
+		} else {
+			dest = fmt.Sprintf("[%s + %d]", equation, displacementValue)
+		}
+
+	case RegisterModeFieldEncoding:
+		rmRegisterName := ""
+		if isWord {
+			rmRegisterName = WordOperationRegisterFieldEncoding[rm]
+		} else {
+			rmRegisterName = ByteOperationRegisterFieldEncoding[rm]
+		}
+
+		dest = rmRegisterName
+	default:
+		panic("The mod field should only be 2 bits")
+	}
+
+	return dest, nil
+}
+
+// [xxx|w] [data] [data if isWord]
+// decodeImmediate decodes a constant byte or word
 func (d *Decoder) decodeImmediate(instructionName string, isWord bool) (immediateValue uint16, err error) {
 	immediateValue = uint16(0)
 
@@ -369,5 +465,11 @@ func verifyOperationType(t byte) {
 func verifyDirection(dir byte) {
 	if dir != RegIsDestination && dir != RegIsSource {
 		panic(fmt.Sprintf("The direction should be a binary value (dest or src). Got %d instead", dir))
+	}
+}
+
+func verifySign(sign byte) {
+	if sign != SignExtension && sign != NoSignExtension {
+		panic(fmt.Sprintf("The sign should be a binary value (sign or no sign). Got %d instead", sign))
 	}
 }

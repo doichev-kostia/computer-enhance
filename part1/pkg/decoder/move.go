@@ -1,9 +1,7 @@
 package decoder
 
 import (
-	"encoding/binary"
 	"fmt"
-	"strconv"
 	"strings"
 )
 
@@ -28,95 +26,14 @@ func moveImmediateToRegOrMem(operation byte, d *Decoder) (string, error) {
 		return "", fmt.Errorf("expected the reg field to be 000 for the 'immediate to register/memory' instruction")
 	}
 
-	// mov dest, immediateValue
-	dest := ""
-	immediateValue := uint16(0)
-
-	// dest
-	switch mod {
-	case MemoryModeNoDisplacementFieldEncoding:
-		equation := ""
-		// the exception for the direct address - 16-bit displacement for the direct address
-		if rm == 0b110 {
-			displacementLow, ok := d.next()
-			if ok == false {
-				return "", fmt.Errorf("expected to receive the Low displacement value for direct address in the 'immediate to register/memory' instruction")
-			}
-			displacementHigh, ok := d.next()
-			if ok == false {
-				return "", fmt.Errorf("expected to receive the High displacement value for direct address in the 'immediate to register/memory' instruction")
-			}
-			displacementValue := binary.LittleEndian.Uint16([]byte{displacementLow, displacementHigh})
-			equation = strconv.Itoa(int(displacementValue))
-		} else {
-			equation = EffectiveAddressEquation[rm]
-		}
-
-		dest = fmt.Sprintf("[%s]", equation)
-
-	case MemoryMode8DisplacementFieldEncoding:
-		displacement, ok := d.next()
-		if ok == false {
-			return "", fmt.Errorf("expected to receive the displacement value for the 'immediate to register/memory' instruction")
-		}
-		equation := EffectiveAddressEquation[rm]
-		signed := int8(displacement)
-		if signed < 0 {
-			dest = fmt.Sprintf("[%s - %d]", equation, ^signed+1) // remove the sign 1111 1011 -> 0000 0101
-		} else {
-			dest = fmt.Sprintf("[%s + %d]", equation, displacement)
-		}
-
-	case MemoryMode16DisplacementFieldEncoding:
-		displacementLow, ok := d.next()
-		if ok == false {
-			return "", fmt.Errorf("expected to receive the Low displacement value for the 'immediate to register/memory' instruction")
-		}
-		displacementHigh, ok := d.next()
-		if ok == false {
-			return "", fmt.Errorf("expected to receive the High displacement value for the 'immediate to register/memory' instruction")
-		}
-
-		equation := EffectiveAddressEquation[rm]
-		displacementValue := binary.LittleEndian.Uint16([]byte{displacementLow, displacementHigh})
-		signed := int16(displacementValue)
-		if signed < 0 {
-			dest = fmt.Sprintf("[%s - %d]", equation, ^signed+1) // remove the sign 1111 1011 -> 0000 0101
-		} else {
-			dest = fmt.Sprintf("[%s + %d]", equation, displacementValue)
-		}
-
-	case RegisterModeFieldEncoding:
-		rmRegisterName := ""
-		if isWord {
-			rmRegisterName = WordOperationRegisterFieldEncoding[rm]
-		} else {
-			rmRegisterName = ByteOperationRegisterFieldEncoding[rm]
-		}
-
-		dest = rmRegisterName
-	default:
-		panic("The mod field should only be 2 bits")
+	dest, err := d.decodeImmediateToRegOrMem("immediate to register/memory", mod, reg, rm, isWord)
+	if err != nil {
+		return "", err
 	}
 
-	// immediateValue
-	if isWord {
-		low, ok := d.next()
-		if ok == false {
-			return "", fmt.Errorf("expected to get the immediate value (low) for the 'immediate to register/memory' instruction")
-		}
-		high, ok := d.next()
-		if ok == false {
-			return "", fmt.Errorf("expected to get the immediate value (high) for the 'immediate to register/memory' instruction")
-		}
-
-		immediateValue = binary.LittleEndian.Uint16([]byte{low, high})
-	} else {
-		v, ok := d.next()
-		if ok == false {
-			return "", fmt.Errorf("expected to get the immediate value for the 'immediate to register/memory' instruction")
-		}
-		immediateValue = uint16(v)
+	immediateValue, err := d.decodeImmediate("immediate to register/memory", isWord)
+	if err != nil {
+		return "", err
 	}
 
 	size := ""

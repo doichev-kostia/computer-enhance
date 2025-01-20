@@ -26,7 +26,7 @@ func moveImmediateToRegOrMem(operation byte, d *Decoder) (string, error) {
 		return "", fmt.Errorf("expected the reg field to be 000 for the 'immediate to register/memory' instruction")
 	}
 
-	dest, err := d.decodeImmediateToRegOrMem("immediate to register/memory", mod, reg, rm, isWord)
+	dest, err := d.decodeImmediateToRegOrMem("immediate to register/memory", mod, rm, isWord)
 	if err != nil {
 		return "", err
 	}

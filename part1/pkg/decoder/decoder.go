@@ -17,14 +17,6 @@ import (
 // Data-lo (Data low) - Low-order byte of 16-bit immediate constant.
 // Data-hi (Data high) - High-order byte of 16-bit immediate constant.
 
-// Common pattern
-//
-// |  op  | pattern |
-// ------------------
-// | ADD  | 000     |
-// | SUB  | 101     |
-// | CMP  | 111     |
-
 // D bit - Direction of the operation
 const (
 	RegIsSource      = 0
@@ -148,17 +140,17 @@ func (d *Decoder) Decode() ([]byte, error) {
 		case d.matchPattern("MOV: accumulator to memory", operation, "0b1010001w"):
 			instruction, err = moveAccumulatorToMemory(operation, d)
 		case d.matchPattern("ADD: Reg/memory with register to either", operation, "0b000000dw"):
-			instruction, err = addRegOrMemWithReg(operation, d)
+			instruction, err = addRegOrMemToReg(operation, d)
 		case d.matchPattern("ADD: Immediate to register/memory", operation, "0b100000sw|0b__000___"):
 			instruction, err = addImmediateToRegOrMem(operation, d)
 		case d.matchPattern("ADD: Immediate to accumulator", operation, "0b0000010w"):
 			instruction, err = addImmediateToAccumulator(operation, d)
 		case d.matchPattern("SUB: Reg/memory and register to either", operation, "0b001010dw"):
-			panic("TODO: SUB: Reg/memory and register to either")
+			instruction, err = subRegOrMemFromReg(operation, d)
 		case d.matchPattern("SUB: Immediate to register/memory", operation, "0b100000sw|0b__101___"):
-			panic("TODO: SUB: immediate from register/memory")
+			instruction, err = subImmediateFromRegOrMem(operation, d)
 		case d.matchPattern("SUB: immediate from accumulator", operation, "0b0010110w"):
-			panic("TODO: SUB: immediate from accumulator")
+			instruction, err = subImmediateFromAccumulator(operation, d)
 		case d.matchPattern("CMP: Reg/memory and register", operation, "0b001110dw"):
 			panic("TODO: CMP: Reg/memory and register")
 		case d.matchPattern("CMP: immediate with register/memory", operation, "0b100000sw|0b__111___"):
@@ -378,12 +370,7 @@ func (d *Decoder) decodeRegOrMem(instructionName string, mod byte, reg byte, rm 
 }
 
 // [xxx|w] [mod|000|r/m] [disp-lo] [disp-hi] [data-lo] [data-hi]
-func (d *Decoder) decodeImmediateToRegOrMem(instructionName string, mod byte, reg byte, rm byte, isWord bool) (dest string, err error) {
-	// must be 000 according to the "Instruction reference"
-	if reg != 0 {
-		return "", fmt.Errorf("expected the reg field to be 000 for the '%s' instruction", instructionName)
-	}
-
+func (d *Decoder) decodeImmediateToRegOrMem(instructionName string, mod byte, rm byte, isWord bool) (dest string, err error) {
 	// mov dest, immediateValue
 	// add dest, immediateValue
 	dest = ""

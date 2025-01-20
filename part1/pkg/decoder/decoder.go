@@ -235,7 +235,7 @@ func (d *Decoder) matchPattern(name string, candidate byte, pattern string) bool
 		b := candidate
 		if i > 0 {
 			var ok bool
-			b, ok = d.peekForward(i + 1)
+			b, ok = d.peekForward(i)
 			if ok == false {
 				return false
 			}

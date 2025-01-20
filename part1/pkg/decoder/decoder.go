@@ -149,11 +149,29 @@ func (d *Decoder) Decode() ([]byte, error) {
 			instruction, err = moveAccumulatorToMemory(operation, d)
 		case matchPattern("ADD: Reg/memory with register to either", operation, "0b000000dw"):
 			instruction, err = addRegOrMemWithReg(operation, d)
-		case matchPattern("ADD: Immediate to register/memory", operation, "0b100000sw"):
-			instruction, err = addImmediateToRegOrMem(operation, d)
+		case matchPattern("Immediate to register/memory", operation, "0b100000sw"):
+			operand, ok := d.peek()
+			if ok != true {
+				panic("Immediate to register/memory requires 2 bytes")
+			}
+			switch {
+			case matchPattern("ADD: Immediate to register/memory", operand, "0bmod000rm"):
+				instruction, err = addImmediateToRegOrMem(operation, d)
+			case matchPattern("SUB: Immediate to register/memory", operand, "0bmod101rm"):
+				panic("TODO: SUB: immediate from register/memory")
+			case matchPattern("CMP: immediate with register/memory", operation, "0bmod111rm"):
+				panic("TODO: CMP: immediate with register/memory")
+			}
 		case matchPattern("ADD: Immediate to accumulator", operation, "0b0000010w"):
 			instruction, err = addImmediateToAccumulator(operation, d)
-
+		case matchPattern("SUB: Reg/memory and register to either", operation, "0b001010dw"):
+			panic("TODO: SUB: Reg/memory and register to either")
+		case matchPattern("SUB: immediate from accumulator", operation, "0b0010110w"):
+			panic("TODO: SUB: immediate from accumulator")
+		case matchPattern("CMP: Reg/memory and register", operation, "0b001110dw"):
+			panic("TODO: CMP: Reg/memory and register")
+		case matchPattern("CMP: immediate from accumulator", operation, "0b0011110w"):
+			panic("TODO: CMP: immediate from accumulator")
 		default:
 			panic(fmt.Sprintf("AssertionError: unexpected operation %b", int(operation)))
 		}
@@ -173,6 +191,14 @@ func (d *Decoder) next() (byte, bool) {
 		b := d.bytes[d.pos]
 		d.pos += 1
 		return b, true
+	} else {
+		return 0, false
+	}
+}
+
+func (d *Decoder) peek() (byte, bool) {
+	if len(d.bytes) > d.pos {
+		return d.bytes[d.pos], true
 	} else {
 		return 0, false
 	}

@@ -29,7 +29,7 @@ const (
 	WordOperation = byte(1)
 )
 
-// S field
+// S bit
 const (
 	NoSignExtension = byte(0)
 	SignExtension   = byte(1) // Sign extend 8-bit immediate data to 16 bits if W=1
@@ -62,7 +62,6 @@ const (
 // | 101 | CH    | BP   |
 // | 110 | DH    | SI   |
 // | 111 | BH    | DI   |
-
 var ByteOperationRegisterFieldEncoding = map[byte]string{
 	0b000: "al",
 	0b001: "cl",
@@ -152,11 +151,11 @@ func (d *Decoder) Decode() ([]byte, error) {
 		case d.matchPattern("SUB: immediate from accumulator", operation, "0b0010110w"):
 			instruction, err = subImmediateFromAccumulator(operation, d)
 		case d.matchPattern("CMP: Reg/memory and register", operation, "0b001110dw"):
-			panic("TODO: CMP: Reg/memory and register")
+			instruction, err = cmpRegOrMemWithReg(operation, d)
 		case d.matchPattern("CMP: immediate with register/memory", operation, "0b100000sw|0b__111___"):
-			panic("TODO: CMP: immediate with register/memory")
+			instruction, err = cmpImmediateWithRegOrMem(operation, d)
 		case d.matchPattern("CMP: immediate from accumulator", operation, "0b0011110w"):
-			panic("TODO: CMP: immediate from accumulator")
+			instruction, err = cmpImmediateWithAccumulator(operation, d)
 		default:
 			panic(fmt.Sprintf("AssertionError: unexpected operation %b", int(operation)))
 		}

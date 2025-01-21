@@ -115,6 +115,12 @@ var JumpNames = map[byte]string{
 	0b01111011: "JNP",
 	0b01110001: "JNO",
 	0b01111001: "JNS",
+	0b11100011: "JCXZ",
+
+	// Loops
+	0b11100010: "LOOP",
+	0b11100001: "LOOPZ",
+	0b11100000: "LOOPNZ",
 }
 
 var JumpAlternativeNames = map[byte]string{
@@ -130,6 +136,10 @@ var JumpAlternativeNames = map[byte]string{
 	0b01110011: "JNB",
 	0b01110111: "JNBE",
 	0b01111011: "JPO",
+
+	// Loops
+	0b11100001: "LOOPE",
+	0b11100000: "LOOPNE",
 }
 
 type instructionNode struct {
@@ -325,11 +335,11 @@ func (d *Decoder) Decode() ([]byte, error) {
 
 		// Loops
 		case d.matchPattern("LOOP: Loop CX times", operation, "0b11100010"):
-			panic("TODO: LOOP: Loop CX times")
+			instruction, err = jumpConditionally(operation, d)
 		case d.matchPattern("LOOPZ/LOOPE: Loop while zero/equal", operation, "0b11100001"):
-			panic("TODO: LOOPZ/LOOPE: Loop while zero/equal")
+			instruction, err = jumpConditionally(operation, d)
 		case d.matchPattern("LOOPNZ/LOOPNE: Loop while not zero/not equal", operation, "0b11100000"):
-			panic("TODO: LOOPNZ/LOOPNE: Loop while not zero/not equal")
+			instruction, err = jumpConditionally(operation, d)
 		default:
 			panic(fmt.Sprintf("AssertionError: unexpected operation %b", int(operation)))
 		}

@@ -30,8 +30,9 @@ func TestDecoding(t *testing.T) {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					if len(decoder.decoded) > 0 {
-						t.Logf("(%s) Partial decoded contents:\n%s", filename, decoder.decoded)
+					decoded := decoder.GetDecoded()
+					if len(decoded) > 0 {
+						t.Logf("(%s) Partial decoded contents:\n%s", filename, decoded)
 					}
 					panic(fmt.Errorf("panic occurred when processing %s; error = %v", filename, r))
 				}

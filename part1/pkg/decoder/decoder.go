@@ -98,21 +98,119 @@ var EffectiveAddressEquation = map[byte]string{
 	0b111: "bx",
 }
 
+var JumpNames = map[byte]string{
+	0b01110100: "JZ",
+	0b01111100: "JL",
+	0b01111110: "JLE",
+	0b01110010: "JB",
+	0b01110110: "JBE",
+	0b01111010: "JP",
+	0b01110000: "JO",
+	0b01111000: "JS",
+	0b01110101: "JNZ",
+	0b01111101: "JGE",
+	0b01111111: "JG",
+	0b01110011: "JAE",
+	0b01110111: "JA",
+	0b01111011: "JNP",
+	0b01110001: "JNO",
+	0b01111001: "JNS",
+}
+
+var JumpAlternativeNames = map[byte]string{
+	0b01110100: "JE",
+	0b01111100: "JNGE",
+	0b01111110: "JNG",
+	0b01110010: "JNAE",
+	0b01110110: "JNA",
+	0b01111010: "JPE",
+	0b01110101: "JNE",
+	0b01111101: "JNL",
+	0b01111111: "JNLE",
+	0b01110011: "JNB",
+	0b01110111: "JNBE",
+	0b01111011: "JPO",
+}
+
+type instructionNode struct {
+	value string
+	pos   int
+	next  *instructionNode
+}
+
 type Decoder struct {
-	bytes   []byte
-	pos     int
-	decoded []byte
+	bytes         []byte
+	pos           int
+	head          *instructionNode
+	tail          *instructionNode
+	numberOfNodes int
+	labels        map[int]string // pos:label
+
+	cachedNodes int // if the number of notes did not change, just return the pre-computed decoded value (won't work with labels, though)
+	decoded     []byte
 }
 
 func NewDecoder(bytes []byte) *Decoder {
 	return &Decoder{
-		bytes:   bytes,
-		pos:     0,
-		decoded: make([]byte, 0),
+		bytes:         bytes,
+		pos:           0,
+		head:          nil,
+		tail:          nil,
+		numberOfNodes: 0,
+		labels:        make(map[int]string),
+
+		cachedNodes: 0,
+		decoded:     make([]byte, 0),
 	}
 }
 
+func (d *Decoder) appendInstruction(pos int, value string) {
+	n := instructionNode{
+		value: value,
+		pos:   pos,
+		next:  nil,
+	}
+
+	if d.head == nil && d.tail == nil {
+		d.head = &n
+		d.tail = &n
+	} else {
+		if d.head == nil || d.tail == nil {
+			panic("Assertion error: head and tail should be either both nil or both not nil")
+		}
+
+		d.tail.next = &n
+		d.tail = &n
+	}
+	d.numberOfNodes += 1
+}
+
 func (d *Decoder) GetDecoded() []byte {
+	if d.numberOfNodes == d.cachedNodes {
+		return d.decoded
+	}
+
+	n := d.head
+	iter := 0
+	d.decoded = d.decoded[:0] // reuse the same array
+	for n != nil {
+		iter += 1
+		if iter > 15_000_000_000 {
+			panic("[GetDecoded] Iterated over 15 billion nodes. This is probably a mistake")
+		}
+
+		instruction := ""
+		label, ok := d.labels[n.pos-1] // as we start counting instructions from 1, instead of 0
+		if ok {
+			instruction += fmt.Sprintf("%s:\n", label)
+		}
+
+		instruction += n.value
+		d.decoded = append(d.decoded, []byte(instruction)...)
+
+		n = n.next
+	}
+
 	return d.decoded
 }
 
@@ -126,6 +224,8 @@ func (d *Decoder) Decode() ([]byte, error) {
 		if ok == false {
 			break
 		}
+
+		instructionPointer := d.pos
 
 		// Table 4-12. 8086 Instruction Encoding
 		switch {
@@ -189,39 +289,39 @@ func (d *Decoder) Decode() ([]byte, error) {
 
 		// Jumps
 		case d.matchPattern("JE/JZ: Jump on equal/zero", operation, "0b01110100"):
-			panic("TODO: JE/JZ: Jump on equal/zero")
+			instruction, err = jumpConditionally(operation, d)
 		case d.matchPattern("JL/JNGE: Jump on less/not greater or equal", operation, "0b01111100"):
-			panic("TODO: JL/JNGE: Jump on less/not greater or equal")
+			instruction, err = jumpConditionally(operation, d)
 		case d.matchPattern("JLE/JNG: Jump on less or equal/not greater", operation, "0b01111110"):
-			panic("TODO: JLE/JNG: Jump on less or equal/not greater")
+			instruction, err = jumpConditionally(operation, d)
 		case d.matchPattern("JB/JNAE: Jump on below/not above or equal", operation, "0b01110010"):
-			panic("TODO: JB/JNAE: Jump on below/not above or equal")
+			instruction, err = jumpConditionally(operation, d)
 		case d.matchPattern("JBE/JNA: Jump on below or equal/not above", operation, "0b01110110"):
-			panic("TODO: JBE/JNA: Jump on below or equal/not above")
+			instruction, err = jumpConditionally(operation, d)
 		case d.matchPattern("JP/JPE: Jump on parity/even", operation, "0b01111010"):
-			panic("TODO: JP/JPE: Jump on parity/even")
+			instruction, err = jumpConditionally(operation, d)
 		case d.matchPattern("JO: Jump on overflow", operation, "0b01110000"):
-			panic("TODO: JO: Jump on overflow")
+			instruction, err = jumpConditionally(operation, d)
 		case d.matchPattern("JS: Jump on sign", operation, "0b01111000"):
-			panic("TODO: JS: Jump on sign")
+			instruction, err = jumpConditionally(operation, d)
 		case d.matchPattern("JNE/JNZ: Jump on not equal/not zero", operation, "0b01110101"):
-			panic("TODO: JNE/JNZ: Jump on not equal/not zero")
+			instruction, err = jumpConditionally(operation, d)
 		case d.matchPattern("JNL/JGE: Jump on not less/greater or equal", operation, "0b01111101"):
-			panic("TODO: JNL/JGE: Jump on not less/greater or equal")
-		case d.matchPattern("JNLE/JG: Jump on not less nor equal/greater", operation, "0b011111111"):
-			panic("TODO: JNLE/JG: Jump on not less nor equal/greater")
+			instruction, err = jumpConditionally(operation, d)
+		case d.matchPattern("JNLE/JG: Jump on not less nor equal/greater", operation, "0b01111111"):
+			instruction, err = jumpConditionally(operation, d)
 		case d.matchPattern("JNB/JAE: Jump on not below/above or equal", operation, "0b01110011"):
-			panic("TODO: JNB/JAE: Jump on not below/above or equal")
+			instruction, err = jumpConditionally(operation, d)
 		case d.matchPattern("JNBE/JA: Jump on not below nor equal/above", operation, "0b01110111"):
-			panic("TODO: JNBE/JA: Jump on not below nor equal/above")
+			instruction, err = jumpConditionally(operation, d)
 		case d.matchPattern("JNP/JPO: Jump on not parity/odd", operation, "0b01111011"):
-			panic("TODO: JNP/JPO: Jump on not parity/odd")
+			instruction, err = jumpConditionally(operation, d)
 		case d.matchPattern("JNO: Jump on not overflow", operation, "0b01110001"):
-			panic("TODO: JNO: Jump on not overflow")
+			instruction, err = jumpConditionally(operation, d)
 		case d.matchPattern("JNS: Jump on not sign", operation, "0b01111001"):
-			panic("TODO: JNS: Jump on not sign")
+			instruction, err = jumpConditionally(operation, d)
 		case d.matchPattern("JCXZ: Jump if CX register is zero", operation, "0b11100011"):
-			panic("TODO: JCXZ: Jump if CX register is zero")
+			instruction, err = jumpConditionally(operation, d)
 
 		// Loops
 		case d.matchPattern("LOOP: Loop CX times", operation, "0b11100010"):
@@ -238,10 +338,10 @@ func (d *Decoder) Decode() ([]byte, error) {
 			return nil, err
 		}
 
-		d.decoded = append(d.decoded, []byte(instruction)...)
+		d.appendInstruction(instructionPointer, instruction)
 	}
 
-	return d.decoded, nil
+	return d.GetDecoded(), nil
 }
 
 func (d *Decoder) next() (byte, bool) {

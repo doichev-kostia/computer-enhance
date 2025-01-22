@@ -25,6 +25,26 @@ func daa(operation byte, d *Decoder) (string, error) {
 	return "daa\n", nil
 }
 
+// [00111111]
+func aas(operation byte, d *Decoder) (string, error) {
+	return "aas\n", nil
+}
+
+// [00101111]
+func das(operation byte, d *Decoder) (string, error) {
+	return "das\n", nil
+}
+
+// [10011000]
+func cbw(operation byte, d *Decoder) (string, error) {
+	return "cbw\n", nil
+}
+
+// [10011001]
+func cwd(operation byte, d *Decoder) (string, error) {
+	return "cwd\n", nil
+}
+
 // [1111011|w] [mod|011|r/m] [disp-lo?] [disp-hi?]
 func neg(operation byte, d *Decoder) (string, error) {
 	// the & 0b00 is to discard all the other bits and leave the ones we care about

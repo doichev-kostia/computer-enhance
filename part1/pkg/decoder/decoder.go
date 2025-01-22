@@ -325,15 +325,36 @@ func (d *Decoder) Decode() ([]byte, error) {
 		case d.matchPattern("ADD: Immediate to accumulator", operation, "0b0000010w"):
 			instruction, err = addImmediateToAccumulator(operation, d)
 
-		// SUB
+		// ADC = Add with carry
+		case d.matchPattern("ADC: Reg/memory with register to either", operation, "0b000100dw"):
+			instruction, err = adcRegOrMemToReg(operation, d)
+		case d.matchPattern("ADC: Immediate to register/memory", operation, "0b100000sw|0b__010___"):
+			instruction, err = adcImmediateToRegOrMem(operation, d)
+		case d.matchPattern("ADC: Immediate to accumulator", operation, "0b0001010w"):
+			instruction, err = adcImmediateToAccumulator(operation, d)
+
+		// INC = Increment
+		case d.matchPattern("INC: Register/memory", operation, "0b1111111w|0b__000___"):
+			instruction, err = incRegOrMem(operation, d)
+		case d.matchPattern("INC: Register", operation, "0b01000reg"):
+			instruction, err = incReg(operation, d)
+
+		case d.matchPattern("AAA: ASCII adjust for add", operation, "0b00110111"):
+			instruction, err = aaa(operation, d)
+		case d.matchPattern("DAA: Decimal adjust for add", operation, "0b00100111"):
+			instruction, err = daa(operation, d)
+
+		// SUB = Subtract
 		case d.matchPattern("SUB: Reg/memory and register to either", operation, "0b001010dw"):
 			instruction, err = subRegOrMemFromReg(operation, d)
 		case d.matchPattern("SUB: Immediate to register/memory", operation, "0b100000sw|0b__101___"):
 			instruction, err = subImmediateFromRegOrMem(operation, d)
 		case d.matchPattern("SUB: Immediate from accumulator", operation, "0b0010110w"):
 			instruction, err = subImmediateFromAccumulator(operation, d)
+		// SBB = Subtract with borrow
+		// DEC = Decrement
 
-		// CMP
+		// CMP = Compare
 		case d.matchPattern("CMP: Reg/memory and register", operation, "0b001110dw"):
 			instruction, err = cmpRegOrMemWithReg(operation, d)
 		case d.matchPattern("CMP: Immediate with register/memory", operation, "0b100000sw|0b__111___"):
@@ -341,7 +362,7 @@ func (d *Decoder) Decode() ([]byte, error) {
 		case d.matchPattern("CMP: Immediate from accumulator", operation, "0b0011110w"):
 			instruction, err = cmpImmediateWithAccumulator(operation, d)
 
-		// JMP (unconditional)
+		// JMP = Unconditional jump
 		case d.matchPattern("JMP: Direct within segment", operation, "0b11101001"):
 			panic("TODO: JMP: Direct within segment")
 		case d.matchPattern("JMP: Direct within segment-short", operation, "0b11101011"):

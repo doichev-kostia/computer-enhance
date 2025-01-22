@@ -250,7 +250,7 @@ func (d *Decoder) Decode() ([]byte, error) {
 
 		// Table 4-12. 8086 Instruction Encoding
 		switch {
-		// MOV
+		// MOV = Move
 		case d.matchPattern("MOV: Register/memory to/from register", operation, "0b100010dw"):
 			instruction, err = moveRegMemToReg(operation, d)
 		case d.matchPattern("MOV: Immediate to register/memory", operation, "0b1100011w"):
@@ -278,39 +278,44 @@ func (d *Decoder) Decode() ([]byte, error) {
 		case d.matchPattern("POP: segment register", operation, "0b000__111"):
 			instruction, err = popSegmentReg(operation, d)
 
-		// XCHG
+		// XCHG = Exchange
 		case d.matchPattern("XCHG: Register/memory with register", operation, "0b1000011w"):
 			instruction, err = exchangeRegOrMemWithReg(operation, d)
 		case d.matchPattern("XCHG: register with accumulator", operation, "0b10010reg"):
 			instruction, err = exchangeRegWithAccumulator(operation, d)
 
-		// IN
+		// IN = Input from
 		case d.matchPattern("IN: Fixed port", operation, "0b1110010w"):
 			instruction, err = inputFromFixedPort(operation, d)
 		case d.matchPattern("IN: Variable port", operation, "0b1110110w"):
 			instruction, err = inputFromVariablePort(operation, d)
 
-		// OUT
+		// OUT = Output to
 		case d.matchPattern("OUT: Fixed port", operation, "0b1110011w"):
 			instruction, err = outputToFixedPort(operation, d)
 		case d.matchPattern("OUT: Variable port", operation, "0b1110111w"):
 			instruction, err = outputToVariablePort(operation, d)
-		case d.matchPattern("OUT: XLAT - Translate byte to AL", operation, "0b11010111"):
-			panic("TODO: OUT: XLAT - Translate byte to AL")
-		case d.matchPattern("OUT: LEA - Load effective address to register", operation, "0b10001101"):
-			panic("TODO: OUT: LEA - Load effective address to register")
-		case d.matchPattern("OUT: LDS - Load pointer to DS", operation, "0b11000101"):
-			panic("TODO: OUT: LDS - Load pointer to DS")
-		case d.matchPattern("OUT: LES - Load pointer to ES", operation, "0b11000100"):
-			panic("TODO: OUT: LES - Load pointer to ES")
-		case d.matchPattern("OUT: LAHF - Load AH with flags", operation, "0b10011111"):
-			panic("TODO: OUT: LAHF - Load AH with flags")
-		case d.matchPattern("OUT: SAHF - Store AH into flags", operation, "0b10011110"):
-			panic("TODO: OUT: SAHF - Store AH into flags")
-		case d.matchPattern("OUT: PUSHF - Push flags", operation, "0b10011100"):
-			panic("TODO: OUT: PUSHF - Push flags")
-		case d.matchPattern("OUT: POPF - Pop flags", operation, "0b10011101"):
-			panic("TODO: OUT: POPF - Pop flags")
+
+		case d.matchPattern("XLAT - Translate byte to AL", operation, "0b11010111"):
+			instruction, err = xlat(operation, d)
+
+		// Address Object Transfers
+		case d.matchPattern("LEA - Load effective address to register", operation, "0b10001101"):
+			instruction, err = lea(operation, d)
+		case d.matchPattern("LDS - Load pointer to DS", operation, "0b11000101"):
+			instruction, err = lds(operation, d)
+		case d.matchPattern("LES - Load pointer to ES", operation, "0b11000100"):
+			instruction, err = les(operation, d)
+
+		// Flag Transfers
+		case d.matchPattern("LAHF - Load AH with flags", operation, "0b10011111"):
+			instruction, err = lahf(operation, d)
+		case d.matchPattern("SAHF - Store AH into flags", operation, "0b10011110"):
+			instruction, err = sahf(operation, d)
+		case d.matchPattern("PUSHF - Push flags", operation, "0b10011100"):
+			instruction, err = pushf(operation, d)
+		case d.matchPattern("POPF - Pop flags", operation, "0b10011101"):
+			instruction, err = popf(operation, d)
 
 		// ADD
 		case d.matchPattern("ADD: Reg/memory with register to either", operation, "0b000000dw"):

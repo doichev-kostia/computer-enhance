@@ -372,41 +372,92 @@ func outputToVariablePort(operation byte, d *Decoder) (string, error) {
 }
 
 // [11010111]
-func outputToXLAT(operation byte, d *Decoder) (string, error) {
-	return "", nil
+func xlat(operation byte, d *Decoder) (string, error) {
+	return "xlat\n", nil
 }
 
 // [10001101] [mod|reg|r/m] [disp-lo] [disp-hi]
-func outputToLEA(operation byte, d *Decoder) (string, error) {
-	return "", nil
+func lea(operation byte, d *Decoder) (string, error) {
+	const dir = RegIsDestination
+	const isWord = true
+
+	operand, ok := d.next()
+	if ok == false {
+		return "", fmt.Errorf("expected to get an operand for the 'LEA' instruction")
+	}
+
+	mod := operand >> 6
+	reg := (operand >> 3) & 0b00000111
+	rm := operand & 0b00000111
+
+	dest, src, err := d.decodeBinaryRegOrMem("LEA", mod, reg, rm, isWord, dir)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("lea %s, %s\n", dest, src), nil
 }
 
 // [11000101] [mod|reg|r/m] [disp-lo] [disp-hi]
-func outputToLDS(operation byte, d *Decoder) (string, error) {
-	return "", nil
+func lds(operation byte, d *Decoder) (string, error) {
+	const dir = RegIsDestination
+	const isWord = true
+
+	operand, ok := d.next()
+	if ok == false {
+		return "", fmt.Errorf("expected to get an operand for the 'LDS' instruction")
+	}
+
+	mod := operand >> 6
+	reg := (operand >> 3) & 0b00000111
+	rm := operand & 0b00000111
+
+	dest, src, err := d.decodeBinaryRegOrMem("LDS", mod, reg, rm, isWord, dir)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("lds %s, %s\n", dest, src), nil
 }
 
 // [11000100] [mod|reg|r/m] [disp-lo] [disp-hi]
-func outputToLES(operation byte, d *Decoder) (string, error) {
-	return "", nil
+func les(operation byte, d *Decoder) (string, error) {
+	const dir = RegIsDestination
+	const isWord = true
+
+	operand, ok := d.next()
+	if ok == false {
+		return "", fmt.Errorf("expected to get an operand for the 'LES' instruction")
+	}
+
+	mod := operand >> 6
+	reg := (operand >> 3) & 0b00000111
+	rm := operand & 0b00000111
+
+	dest, src, err := d.decodeBinaryRegOrMem("LES", mod, reg, rm, isWord, dir)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("les %s, %s\n", dest, src), nil
 }
 
 // [10011111]
-func outputToLAHF(operation byte, d *Decoder) (string, error) {
-	return "", nil
+func lahf(operation byte, d *Decoder) (string, error) {
+	return "lahf\n", nil
 }
 
 // [10011110]
-func outputToSAHF(operation byte, d *Decoder) (string, error) {
-	return "", nil
+func sahf(operation byte, d *Decoder) (string, error) {
+	return "sahf\n", nil
 }
 
 // [10011100]
-func outputToPUSHF(operation byte, d *Decoder) (string, error) {
-	return "", nil
+func pushf(operation byte, d *Decoder) (string, error) {
+	return "pushf\n", nil
 }
 
 // [10011101]
-func outputToPOPF(operation byte, d *Decoder) (string, error) {
-	return "", nil
+func popf(operation byte, d *Decoder) (string, error) {
+	return "popf\n", nil
 }

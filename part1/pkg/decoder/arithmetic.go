@@ -35,7 +35,7 @@ func addRegOrMemToReg(operation byte, d *Decoder) (string, error) {
 	reg := (operand >> 3) & 0b00000111
 	rm := operand & 0b00000111
 
-	dest, src, err := d.decodeRegOrMem("ADD: Reg/memory with register to either", mod, reg, rm, isWord, dir)
+	dest, src, err := d.decodeBinaryRegOrMem("ADD: Reg/memory with register to either", mod, reg, rm, isWord, dir)
 	if err != nil {
 		return "", err
 	}
@@ -68,7 +68,7 @@ func addImmediateToRegOrMem(operation byte, d *Decoder) (string, error) {
 		return "", fmt.Errorf("expected the reg field to be 000 for the 'ADD: immediate to register/memory' instruction")
 	}
 
-	dest, err := d.decodeImmediateToRegOrMem("ADD: immediate to register/memory", mod, rm, isWord)
+	dest, err := d.decodeUnaryRegOrMem("ADD: immediate to register/memory", mod, rm, isWord)
 	if err != nil {
 		return "", err
 	}
@@ -151,7 +151,7 @@ func subRegOrMemFromReg(operation byte, d *Decoder) (string, error) {
 	reg := (operand >> 3) & 0b00000111
 	rm := operand & 0b00000111
 
-	dest, src, err := d.decodeRegOrMem("SUB: Reg/memory and register to either", mod, reg, rm, isWord, dir)
+	dest, src, err := d.decodeBinaryRegOrMem("SUB: Reg/memory and register to either", mod, reg, rm, isWord, dir)
 	if err != nil {
 		return "", err
 	}
@@ -184,7 +184,7 @@ func subImmediateFromRegOrMem(operation byte, d *Decoder) (string, error) {
 		return "", fmt.Errorf("expected the reg field to be 101 for the 'SUB: immediate from register/memory' instruction")
 	}
 
-	dest, err := d.decodeImmediateToRegOrMem("SUB: immediate from register/memory", mod, rm, isWord)
+	dest, err := d.decodeUnaryRegOrMem("SUB: immediate from register/memory", mod, rm, isWord)
 	if err != nil {
 		return "", err
 	}
@@ -267,7 +267,7 @@ func cmpRegOrMemWithReg(operation byte, d *Decoder) (string, error) {
 	reg := (operand >> 3) & 0b00000111
 	rm := operand & 0b00000111
 
-	dest, src, err := d.decodeRegOrMem("CMP: Reg/memory and register", mod, reg, rm, isWord, dir)
+	dest, src, err := d.decodeBinaryRegOrMem("CMP: Reg/memory and register", mod, reg, rm, isWord, dir)
 	if err != nil {
 		return "", err
 	}
@@ -300,7 +300,7 @@ func cmpImmediateWithRegOrMem(operation byte, d *Decoder) (string, error) {
 		return "", fmt.Errorf("expected the reg field to be 111 for the 'CMP: immediate with register/memory' instruction")
 	}
 
-	dest, err := d.decodeImmediateToRegOrMem("CMP: immediate with register/memory", mod, rm, isWord)
+	dest, err := d.decodeUnaryRegOrMem("CMP: immediate with register/memory", mod, rm, isWord)
 	if err != nil {
 		return "", err
 	}

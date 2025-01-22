@@ -84,6 +84,13 @@ var WordOperationRegisterFieldEncoding = map[byte]string{
 	0b111: "di",
 }
 
+var SegmentRegisterFieldEncoding = map[byte]string{
+	0b000: "es", // extra segment
+	0b001: "cs", // code segment
+	0b010: "ss", // stack segment
+	0b011: "ds", // data segment
+}
+
 // EffectiveAddressEquation based on the r/m (Register/Memory) field encoding
 // Table 4-10 in "Instruction reference"
 // r/m: equation
@@ -155,9 +162,8 @@ type Decoder struct {
 	tail          *instructionNode
 	numberOfNodes int
 	labels        map[int]string // pos:label
-
-	cachedNodes int // if the number of notes did not change, just return the pre-computed decoded value (won't work with labels, though)
-	decoded     []byte
+	cacheKey      string
+	decoded       []byte
 }
 
 func NewDecoder(bytes []byte) *Decoder {
@@ -168,9 +174,8 @@ func NewDecoder(bytes []byte) *Decoder {
 		tail:          nil,
 		numberOfNodes: 0,
 		labels:        make(map[int]string),
-
-		cachedNodes: 0,
-		decoded:     make([]byte, 0),
+		cacheKey:      "",
+		decoded:       make([]byte, 0),
 	}
 }
 
@@ -195,8 +200,13 @@ func (d *Decoder) appendInstruction(pos int, value string) {
 	d.numberOfNodes += 1
 }
 
+func (d *Decoder) computeCacheKey() string {
+	return fmt.Sprintf("n=%d;l=%d", d.numberOfNodes, len(d.labels))
+}
+
 func (d *Decoder) GetDecoded() []byte {
-	if d.numberOfNodes == d.cachedNodes {
+	cacheKey := d.computeCacheKey()
+	if cacheKey == d.cacheKey {
 		return d.decoded
 	}
 
@@ -221,6 +231,7 @@ func (d *Decoder) GetDecoded() []byte {
 		n = n.next
 	}
 
+	d.cacheKey = cacheKey
 	return d.decoded
 }
 
@@ -250,6 +261,56 @@ func (d *Decoder) Decode() ([]byte, error) {
 			instruction, err = moveMemoryToAccumulator(operation, d)
 		case d.matchPattern("MOV: Accumulator to memory", operation, "0b1010001w"):
 			instruction, err = moveAccumulatorToMemory(operation, d)
+
+		// PUSH
+		case d.matchPattern("PUSH: Register/memory", operation, "0b11111111|0b__110___"):
+			instruction, err = pushRegOrMem(operation, d)
+		case d.matchPattern("PUSH: Register", operation, "0b01010reg"):
+			instruction, err = pushReg(operation, d)
+		case d.matchPattern("PUSH: segment register", operation, "0b000__110"):
+			instruction, err = pushSegmentReg(operation, d)
+
+		// POP
+		case d.matchPattern("POP: Register/memory", operation, "0b10001111|0b__000___"):
+			instruction, err = popRegOrMem(operation, d)
+		case d.matchPattern("POP: Register", operation, "0b01011reg"):
+			instruction, err = popReg(operation, d)
+		case d.matchPattern("POP: segment register", operation, "0b000__111"):
+			instruction, err = popSegmentReg(operation, d)
+
+		// XCHG
+		case d.matchPattern("XCHG: Register/memory with register", operation, "0b1000011w"):
+			panic("TODO: XCHG: Register/memory with register")
+		case d.matchPattern("XCHG: register with accumulator", operation, "0b10010reg"):
+			panic("TODO: XCHG: register with accumulator")
+
+		// IN
+		case d.matchPattern("IN: Fixed port", operation, "0b1110010w"):
+			panic("TODO: IN: Fixed port")
+		case d.matchPattern("IN: Variable port", operation, "0b1110110w"):
+			panic("TODO: IN: Variable port")
+
+		// OUT
+		case d.matchPattern("OUT: Fixed port", operation, "0b1110011w"):
+			panic("TODO: OUT: Fixed port")
+		case d.matchPattern("OUT: Variable port", operation, "0b1110111w"):
+			panic("TODO: OUT: Variable port")
+		case d.matchPattern("OUT: XLAT - Translate byte to AL", operation, "0b11010111"):
+			panic("TODO: OUT: XLAT - Translate byte to AL")
+		case d.matchPattern("OUT: LEA - Load effective address to register", operation, "0b10001101"):
+			panic("TODO: OUT: LEA - Load effective address to register")
+		case d.matchPattern("OUT: LDS - Load pointer to DS", operation, "0b11000101"):
+			panic("TODO: OUT: LDS - Load pointer to DS")
+		case d.matchPattern("OUT: LES - Load pointer to ES", operation, "0b11000100"):
+			panic("TODO: OUT: LES - Load pointer to ES")
+		case d.matchPattern("OUT: LAHF - Load AH with flags", operation, "0b10011111"):
+			panic("TODO: OUT: LAHF - Load AH with flags")
+		case d.matchPattern("OUT: SAHF - Store AH into flags", operation, "0b10011110"):
+			panic("TODO: OUT: SAHF - Store AH into flags")
+		case d.matchPattern("OUT: PUSHF - Push flags", operation, "0b10011100"):
+			panic("TODO: OUT: PUSHF - Push flags")
+		case d.matchPattern("OUT: POPF - Pop flags", operation, "0b10011101"):
+			panic("TODO: OUT: POPF - Pop flags")
 
 		// ADD
 		case d.matchPattern("ADD: Reg/memory with register to either", operation, "0b000000dw"):
@@ -437,7 +498,7 @@ func (d *Decoder) matchPattern(name string, candidate byte, pattern string) bool
 }
 
 // [mod|reg|r/m]
-func (d *Decoder) decodeRegOrMem(instructionName string, mod byte, reg byte, rm byte, isWord bool, dir byte) (dest string, src string, err error) {
+func (d *Decoder) decodeBinaryRegOrMem(instructionName string, mod byte, reg byte, rm byte, isWord bool, dir byte) (dest string, src string, err error) {
 	verifyDirection(dir)
 	regName := ""
 	if isWord {
@@ -552,11 +613,9 @@ func (d *Decoder) decodeRegOrMem(instructionName string, mod byte, reg byte, rm 
 	return dest, src, nil
 }
 
-// [xxx|w] [mod|000|r/m] [disp-lo] [disp-hi] [data-lo] [data-hi]
-func (d *Decoder) decodeImmediateToRegOrMem(instructionName string, mod byte, rm byte, isWord bool) (dest string, err error) {
-	// mov dest, immediateValue
-	// add dest, immediateValue
-	dest = ""
+// [xxx|w] [mod|xxx|r/m] [disp-lo] [disp-hi]
+func (d *Decoder) decodeUnaryRegOrMem(instructionName string, mod byte, rm byte, isWord bool) (string, error) {
+	regOrMem := ""
 
 	switch mod {
 	case MemoryModeNoDisplacementFieldEncoding:
@@ -577,7 +636,7 @@ func (d *Decoder) decodeImmediateToRegOrMem(instructionName string, mod byte, rm
 			equation = EffectiveAddressEquation[rm]
 		}
 
-		dest = fmt.Sprintf("[%s]", equation)
+		regOrMem = fmt.Sprintf("[%s]", equation)
 
 	case MemoryMode8DisplacementFieldEncoding:
 		displacement, ok := d.next()
@@ -587,9 +646,9 @@ func (d *Decoder) decodeImmediateToRegOrMem(instructionName string, mod byte, rm
 		equation := EffectiveAddressEquation[rm]
 		signed := int8(displacement)
 		if signed < 0 {
-			dest = fmt.Sprintf("[%s - %d]", equation, ^signed+1) // remove the sign 1111 1011 -> 0000 0101
+			regOrMem = fmt.Sprintf("[%s - %d]", equation, ^signed+1) // remove the sign 1111 1011 -> 0000 0101
 		} else {
-			dest = fmt.Sprintf("[%s + %d]", equation, displacement)
+			regOrMem = fmt.Sprintf("[%s + %d]", equation, displacement)
 		}
 
 	case MemoryMode16DisplacementFieldEncoding:
@@ -606,9 +665,9 @@ func (d *Decoder) decodeImmediateToRegOrMem(instructionName string, mod byte, rm
 		displacementValue := binary.LittleEndian.Uint16([]byte{displacementLow, displacementHigh})
 		signed := int16(displacementValue)
 		if signed < 0 {
-			dest = fmt.Sprintf("[%s - %d]", equation, ^signed+1) // remove the sign 1111 1011 -> 0000 0101
+			regOrMem = fmt.Sprintf("[%s - %d]", equation, ^signed+1) // remove the sign 1111 1011 -> 0000 0101
 		} else {
-			dest = fmt.Sprintf("[%s + %d]", equation, displacementValue)
+			regOrMem = fmt.Sprintf("[%s + %d]", equation, displacementValue)
 		}
 
 	case RegisterModeFieldEncoding:
@@ -619,12 +678,12 @@ func (d *Decoder) decodeImmediateToRegOrMem(instructionName string, mod byte, rm
 			rmRegisterName = ByteOperationRegisterFieldEncoding[rm]
 		}
 
-		dest = rmRegisterName
+		regOrMem = rmRegisterName
 	default:
 		panic("The mod field should only be 2 bits")
 	}
 
-	return dest, nil
+	return regOrMem, nil
 }
 
 // [xxx|w] [data] [data if isWord]

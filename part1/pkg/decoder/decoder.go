@@ -317,21 +317,6 @@ func (d *Decoder) Decode() ([]byte, error) {
 		case d.matchPattern("POPF - Pop flags", operation, "0b10011101"):
 			instruction, err = popf(operation, d)
 
-		case d.matchPattern("AAA: ASCII adjust for add", operation, "0b00110111"):
-			instruction, err = aaa(operation, d)
-		case d.matchPattern("DAA: Decimal adjust for add", operation, "0b00100111"):
-			instruction, err = daa(operation, d)
-		case d.matchPattern("AAS: ASCII adjust for subtract", operation, "0b00111111"):
-			instruction, err = aas(operation, d)
-		case d.matchPattern("DAS: decimal adjust for subtract", operation, "0b00101111"):
-			instruction, err = das(operation, d)
-		case d.matchPattern("CBW: convert byte to word", operation, "0b10011000"):
-			instruction, err = cbw(operation, d)
-		case d.matchPattern("CWD: convert word to double word", operation, "0b10011001"):
-			instruction, err = cwd(operation, d)
-		case d.matchPattern("NEG: Change sign", operation, "0b1111011w|0b__011___"):
-			instruction, err = neg(operation, d)
-
 		// ADD
 		case d.matchPattern("ADD: Reg/memory with register to either", operation, "0b000000dw"):
 			instruction, err = addRegOrMemToReg(operation, d)
@@ -353,6 +338,11 @@ func (d *Decoder) Decode() ([]byte, error) {
 			instruction, err = incRegOrMem(operation, d)
 		case d.matchPattern("INC: Register", operation, "0b01000reg"):
 			instruction, err = incReg(operation, d)
+
+		case d.matchPattern("AAA: ASCII adjust for add", operation, "0b00110111"):
+			instruction, err = aaa(operation, d)
+		case d.matchPattern("DAA: Decimal adjust for add", operation, "0b00100111"):
+			instruction, err = daa(operation, d)
 
 		// SUB = Subtract
 		case d.matchPattern("SUB: Reg/memory and register to either", operation, "0b001010dw"):
@@ -376,6 +366,9 @@ func (d *Decoder) Decode() ([]byte, error) {
 		case d.matchPattern("DEC: Register", operation, "0b01001reg"):
 			instruction, err = decReg(operation, d)
 
+		case d.matchPattern("NEG: Change sign", operation, "0b1111011w|0b__011___"):
+			instruction, err = neg(operation, d)
+
 		// CMP = Compare
 		case d.matchPattern("CMP: Reg/memory and register", operation, "0b001110dw"):
 			instruction, err = cmpRegOrMemWithReg(operation, d)
@@ -383,6 +376,29 @@ func (d *Decoder) Decode() ([]byte, error) {
 			instruction, err = cmpImmediateWithRegOrMem(operation, d)
 		case d.matchPattern("CMP: Immediate from accumulator", operation, "0b0011110w"):
 			instruction, err = cmpImmediateWithAccumulator(operation, d)
+
+		case d.matchPattern("AAS: ASCII adjust for subtract", operation, "0b00111111"):
+			instruction, err = aas(operation, d)
+		case d.matchPattern("DAS: decimal adjust for subtract", operation, "0b00101111"):
+			instruction, err = das(operation, d)
+
+		case d.matchPattern("MUL: Unsigned multiply", operation, "0b1111011w|0b__100___"):
+			instruction, err = mul(operation, d)
+		case d.matchPattern("IMUL: Signed multiply", operation, "0b1111011w|0b__101___"):
+			instruction, err = imul(operation, d)
+		case d.matchPattern("AAM: ASCII adjust for multiply", operation, "0b11010100|0b00001010"):
+			instruction, err = aam(operation, d)
+
+		case d.matchPattern("DIV: Unsigned divide", operation, "0b1111011w|0b__110___"):
+			instruction, err = div(operation, d)
+		case d.matchPattern("IDIV: Signed divide", operation, "0b1111011w|0b__111___"):
+			instruction, err = idiv(operation, d)
+		case d.matchPattern("AAD: ASCII adjust for divide", operation, "0b11010101|0b00001010"):
+			instruction, err = aad(operation, d)
+		case d.matchPattern("CBW: convert byte to word", operation, "0b10011000"):
+			instruction, err = cbw(operation, d)
+		case d.matchPattern("CWD: convert word to double word", operation, "0b10011001"):
+			instruction, err = cwd(operation, d)
 
 		// JMP = Unconditional jump
 		case d.matchPattern("JMP: Direct within segment", operation, "0b11101001"):

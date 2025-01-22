@@ -280,9 +280,9 @@ func (d *Decoder) Decode() ([]byte, error) {
 
 		// XCHG
 		case d.matchPattern("XCHG: Register/memory with register", operation, "0b1000011w"):
-			panic("TODO: XCHG: Register/memory with register")
+			instruction, err = exchangeRegOrMemWithReg(operation, d)
 		case d.matchPattern("XCHG: register with accumulator", operation, "0b10010reg"):
-			panic("TODO: XCHG: register with accumulator")
+			instruction, err = exchangeRegWithAccumulator(operation, d)
 
 		// IN
 		case d.matchPattern("IN: Fixed port", operation, "0b1110010w"):

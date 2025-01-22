@@ -256,3 +256,38 @@ func popSegmentReg(operation byte, d *Decoder) (string, error) {
 	regName := SegmentRegisterFieldEncoding[reg]
 	return fmt.Sprintf("pop %s\n", regName), nil
 }
+
+// [100001|w] [mod|reg|r/m] [disp-lo] [disp-hi]
+func exchangeRegOrMemWithReg(operation byte, d *Decoder) (string, error) {
+	const dir = RegIsSource
+
+	// the & 0b00 is to discard all the other bits and leave the ones we care about
+	operationType := operation & 0b00000001
+	verifyOperationType(operationType)
+	isWord := operationType == WordOperation
+
+	operand, ok := d.next()
+	if ok == false {
+		return "", fmt.Errorf("expected to get an operand for the 'XCHG: Register/memory with register' instruction")
+	}
+
+	mod := operand >> 6
+	reg := (operand >> 3) & 0b00000111
+	rm := operand & 0b00000111
+
+	dest, src, err := d.decodeBinaryRegOrMem("XCHG: Register/memory with register", mod, reg, rm, isWord, dir)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("xchg %s, %s\n", dest, src), nil
+}
+
+// [10010|reg]
+// ONLY WORD
+func exchangeRegWithAccumulator(operation byte, d *Decoder) (string, error) {
+	reg := operation & 0b00000111
+	regName := WordOperationRegisterFieldEncoding[reg]
+
+	return fmt.Sprintf("xchg ax, %s\n", regName), nil
+}

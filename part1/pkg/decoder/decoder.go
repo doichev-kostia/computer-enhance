@@ -780,6 +780,14 @@ func (d *Decoder) decodeAddress(instructionName string, isWord bool) (address ui
 	return address, nil
 }
 
+// [mod|reg|r/m]
+func parseOperand(operand byte) (mod byte, reg byte, rm byte) {
+	mod = operand >> 6
+	reg = (operand >> 3) & 0b00000111
+	rm = operand & 0b00000111
+	return
+}
+
 func verifyOperationType(t byte) {
 	if t != WordOperation && t != ByteOperation {
 		panic(fmt.Sprintf("The operation type should be a binary value (word or byte). Got %d instead", t))

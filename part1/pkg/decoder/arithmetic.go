@@ -76,66 +76,11 @@ func addRegOrMemToReg(operation byte, d *Decoder) (string, error) {
 
 // [100000|s|w] [mod|000|r/m] [disp-lo?] [disp-hi?] [data] [data if s|w = 0|1]
 func addImmediateToRegOrMem(operation byte, d *Decoder) (string, error) {
-	// the & 0b00 is to discard all the other bits and leave the ones we care about
-	operationType := operation & 0b00000001
-	verifyOperationType(operationType)
-	isWord := operationType == WordOperation
-
-	sign := (operation >> 1) & 0b00000001
-	verifySign(sign)
-	isSigned := sign == SignExtension
-
-	operand, ok := d.next()
-	if ok == false {
-		return "", fmt.Errorf("expected to get an operand for the 'ADD: immediate to register/memory' instruction")
-	}
-
-	mod := operand >> 6
-	reg := (operand >> 3) & 0b00000111
-	rm := operand & 0b00000111
-
-	// must be 000 according to the "Instruction reference"
-	if reg != 0b000 {
-		return "", fmt.Errorf("expected the reg field to be 000 for the 'ADD: immediate to register/memory' instruction")
-	}
-
-	dest, err := d.decodeUnaryRegOrMem("ADD: immediate to register/memory", mod, rm, isWord)
+	instruction, err := buildImmediateWithRegOrMemInstruction("add", "ADD: immediate to register/memory", 0b000, operation, d)
 	if err != nil {
 		return "", err
 	}
-
-	// the 8086 uses optimization technique - instead of using two bytes to represent a 16-bit immediate value, it can use one byte and sign-extend it, saving a byte in the instruction encoding when the immediate value is small enough to fit in a signed byte.
-	immediateValue, err := d.decodeImmediate("ADD: immediate to register/memory", isWord && !isSigned)
-	if err != nil {
-		return "", err
-	}
-
-	size := ""
-	if isWord {
-		size = "word"
-	} else {
-		size = "byte"
-	}
-
-	var builder strings.Builder
-	fmt.Fprintf(&builder, "add %s, ", dest)
-
-	// we need to specify the size of the value
-	if mod != RegisterModeFieldEncoding {
-		// add [bp + 75], byte 12
-		// add [bp + 75], word 512
-		builder.WriteString(size + " ")
-	}
-
-	if isSigned {
-		truncated := uint8(immediateValue)
-		fmt.Fprintf(&builder, "%d", int8(truncated))
-	} else {
-		fmt.Fprintf(&builder, "%d", immediateValue)
-	}
-
-	builder.WriteString("\n")
-	return builder.String(), nil
+	return instruction, nil
 }
 
 // [0000010|w] [data] [data if w = 1]
@@ -160,66 +105,11 @@ func adcRegOrMemToReg(operation byte, d *Decoder) (string, error) {
 
 // [100000|s|w] [mod|010|r/m] [disp-lo?] [disp-hi?] [data] [data if s|w = 0|1]
 func adcImmediateToRegOrMem(operation byte, d *Decoder) (string, error) {
-	// the & 0b00 is to discard all the other bits and leave the ones we care about
-	operationType := operation & 0b00000001
-	verifyOperationType(operationType)
-	isWord := operationType == WordOperation
-
-	sign := (operation >> 1) & 0b00000001
-	verifySign(sign)
-	isSigned := sign == SignExtension
-
-	operand, ok := d.next()
-	if ok == false {
-		return "", fmt.Errorf("expected to get an operand for the 'ADC: immediate to register/memory' instruction")
-	}
-
-	mod := operand >> 6
-	reg := (operand >> 3) & 0b00000111
-	rm := operand & 0b00000111
-
-	// must be 010 according to the "Instruction reference"
-	if reg != 0b010 {
-		return "", fmt.Errorf("expected the reg field to be 010 for the 'ADC: immediate to register/memory' instruction")
-	}
-
-	dest, err := d.decodeUnaryRegOrMem("ADC: immediate to register/memory", mod, rm, isWord)
+	instruction, err := buildImmediateWithRegOrMemInstruction("adc", "ADC: immediate to register/memory", 0b010, operation, d)
 	if err != nil {
 		return "", err
 	}
-
-	// the 8086 uses optimization technique - instead of using two bytes to represent a 16-bit immediate value, it can use one byte and sign-extend it, saving a byte in the instruction encoding when the immediate value is small enough to fit in a signed byte.
-	immediateValue, err := d.decodeImmediate("ADC: immediate to register/memory", isWord && !isSigned)
-	if err != nil {
-		return "", err
-	}
-
-	size := ""
-	if isWord {
-		size = "word"
-	} else {
-		size = "byte"
-	}
-
-	var builder strings.Builder
-	fmt.Fprintf(&builder, "adc %s, ", dest)
-
-	// we need to specify the size of the value
-	if mod != RegisterModeFieldEncoding {
-		// adc [bp + 75], byte 12
-		// adc [bp + 75], word 512
-		builder.WriteString(size + " ")
-	}
-
-	if isSigned {
-		truncated := uint8(immediateValue)
-		fmt.Fprintf(&builder, "%d", int8(truncated))
-	} else {
-		fmt.Fprintf(&builder, "%d", immediateValue)
-	}
-
-	builder.WriteString("\n")
-	return builder.String(), nil
+	return instruction, nil
 }
 
 // [0001010|w] [data] [data if w = 1]
@@ -293,66 +183,11 @@ func subRegOrMemFromReg(operation byte, d *Decoder) (string, error) {
 
 // [100000|s|w] [mod|101|r/m] [disp-lo?] [disp-hi?] [data] [data if s|w = 0|1]
 func subImmediateFromRegOrMem(operation byte, d *Decoder) (string, error) {
-	// the & 0b00 is to discard all the other bits and leave the ones we care about
-	operationType := operation & 0b00000001
-	verifyOperationType(operationType)
-	isWord := operationType == WordOperation
-
-	sign := (operation >> 1) & 0b00000001
-	verifySign(sign)
-	isSigned := sign == SignExtension
-
-	operand, ok := d.next()
-	if ok == false {
-		return "", fmt.Errorf("expected to get an operand for the 'SUB: immediate from register/memory' instruction")
-	}
-
-	mod := operand >> 6
-	reg := (operand >> 3) & 0b00000111
-	rm := operand & 0b00000111
-
-	// must be 101 according to the "Instruction reference"
-	if reg != 0b101 {
-		return "", fmt.Errorf("expected the reg field to be 101 for the 'SUB: immediate from register/memory' instruction")
-	}
-
-	dest, err := d.decodeUnaryRegOrMem("SUB: immediate from register/memory", mod, rm, isWord)
+	instruction, err := buildImmediateWithRegOrMemInstruction("sub", "SUB: immediate from register/memory", 0b101, operation, d)
 	if err != nil {
 		return "", err
 	}
-
-	// the 8086 uses optimization technique - instead of using two bytes to represent a 16-bit immediate value, it can use one byte and sign-extend it, saving a byte in the instruction encoding when the immediate value is small enough to fit in a signed byte.
-	immediateValue, err := d.decodeImmediate("SUB: immediate from register/memory", isWord && !isSigned)
-	if err != nil {
-		return "", err
-	}
-
-	size := ""
-	if isWord {
-		size = "word"
-	} else {
-		size = "byte"
-	}
-
-	var builder strings.Builder
-	fmt.Fprintf(&builder, "sub %s, ", dest)
-
-	// we need to specify the size of the value
-	if mod != RegisterModeFieldEncoding {
-		// sub [bp + 75], byte 12
-		// sub [bp + 75], word 512
-		builder.WriteString(size + " ")
-	}
-
-	if isSigned {
-		truncated := uint8(immediateValue)
-		fmt.Fprintf(&builder, "%d", int8(truncated))
-	} else {
-		fmt.Fprintf(&builder, "%d", immediateValue)
-	}
-
-	builder.WriteString("\n")
-	return builder.String(), nil
+	return instruction, nil
 }
 
 // [0010110|w] [data] [data if w = 1]
@@ -378,66 +213,11 @@ func sbbRegOrMemFromReg(operation byte, d *Decoder) (string, error) {
 
 // [100000|s|w] [mod|011|r/m] [disp-lo?] [disp-hi?] [data] [data if s|w = 0|1]
 func sbbImmediateFromRegOrMem(operation byte, d *Decoder) (string, error) {
-	// the & 0b00 is to discard all the other bits and leave the ones we care about
-	operationType := operation & 0b00000001
-	verifyOperationType(operationType)
-	isWord := operationType == WordOperation
-
-	sign := (operation >> 1) & 0b00000001
-	verifySign(sign)
-	isSigned := sign == SignExtension
-
-	operand, ok := d.next()
-	if ok == false {
-		return "", fmt.Errorf("expected to get an operand for the 'SBB: immediate from register/memory' instruction")
-	}
-
-	mod := operand >> 6
-	reg := (operand >> 3) & 0b00000111
-	rm := operand & 0b00000111
-
-	// must be 011 according to the "Instruction reference"
-	if reg != 0b011 {
-		return "", fmt.Errorf("expected the reg field to be 011 for the 'SBB: immediate from register/memory' instruction")
-	}
-
-	dest, err := d.decodeUnaryRegOrMem("SBB: immediate from register/memory", mod, rm, isWord)
+	instruction, err := buildImmediateWithRegOrMemInstruction("sbb", "SBB: immediate from register/memory", 0b011, operation, d)
 	if err != nil {
 		return "", err
 	}
-
-	// the 8086 uses optimization technique - instead of using two bytes to represent a 16-bit immediate value, it can use one byte and sign-extend it, saving a byte in the instruction encoding when the immediate value is small enough to fit in a signed byte.
-	immediateValue, err := d.decodeImmediate("SBB: immediate from register/memory", isWord && !isSigned)
-	if err != nil {
-		return "", err
-	}
-
-	size := ""
-	if isWord {
-		size = "word"
-	} else {
-		size = "byte"
-	}
-
-	var builder strings.Builder
-	fmt.Fprintf(&builder, "sbb %s, ", dest)
-
-	// we need to specify the size of the value
-	if mod != RegisterModeFieldEncoding {
-		// sbb [bp + 75], byte 12
-		// sbb [bp + 75], word 512
-		builder.WriteString(size + " ")
-	}
-
-	if isSigned {
-		truncated := uint8(immediateValue)
-		fmt.Fprintf(&builder, "%d", int8(truncated))
-	} else {
-		fmt.Fprintf(&builder, "%d", immediateValue)
-	}
-
-	builder.WriteString("\n")
-	return builder.String(), nil
+	return instruction, nil
 }
 
 // [0010110|w] [data] [data if w = 1]
@@ -511,66 +291,11 @@ func cmpRegOrMemWithReg(operation byte, d *Decoder) (string, error) {
 
 // [100000|s|w] [mod|111|r/m] [disp-lo?] [disp-hi?] [data] [data if s|w = 0|1]
 func cmpImmediateWithRegOrMem(operation byte, d *Decoder) (string, error) {
-	// the & 0b00 is to discard all the other bits and leave the ones we care about
-	operationType := operation & 0b00000001
-	verifyOperationType(operationType)
-	isWord := operationType == WordOperation
-
-	sign := (operation >> 1) & 0b00000001
-	verifySign(sign)
-	isSigned := sign == SignExtension
-
-	operand, ok := d.next()
-	if ok == false {
-		return "", fmt.Errorf("expected to get an operand for the 'CMP: immediate with register/memory' instruction")
-	}
-
-	mod := operand >> 6
-	reg := (operand >> 3) & 0b00000111
-	rm := operand & 0b00000111
-
-	// must be 111 according to the "Instruction reference"
-	if reg != 0b111 {
-		return "", fmt.Errorf("expected the reg field to be 111 for the 'CMP: immediate with register/memory' instruction")
-	}
-
-	dest, err := d.decodeUnaryRegOrMem("CMP: immediate with register/memory", mod, rm, isWord)
+	instruction, err := buildImmediateWithRegOrMemInstruction("cmp", "CMP: immediate with register/memory", 0b111, operation, d)
 	if err != nil {
 		return "", err
 	}
-
-	// the 8086 uses optimization technique - instead of using two bytes to represent a 16-bit immediate value, it can use one byte and sign-extend it, saving a byte in the instruction encoding when the immediate value is small enough to fit in a signed byte.
-	immediateValue, err := d.decodeImmediate("CMP: immediate with register/memory", isWord && !isSigned)
-	if err != nil {
-		return "", err
-	}
-
-	size := ""
-	if isWord {
-		size = "word"
-	} else {
-		size = "byte"
-	}
-
-	var builder strings.Builder
-	fmt.Fprintf(&builder, "cmp %s, ", dest)
-
-	// we need to specify the size of the value
-	if mod != RegisterModeFieldEncoding {
-		// cmp [bp + 75], byte 12
-		// cmp [bp + 75], word 512
-		builder.WriteString(size + " ")
-	}
-
-	if isSigned {
-		truncated := uint8(immediateValue)
-		fmt.Fprintf(&builder, "%d", int8(truncated))
-	} else {
-		fmt.Fprintf(&builder, "%d", immediateValue)
-	}
-
-	builder.WriteString("\n")
-	return builder.String(), nil
+	return instruction, nil
 }
 
 // [0011110|w] [data] [data if w = 1]
@@ -601,11 +326,71 @@ func regOrMemWithReg(instructionName string, operation byte, d *Decoder) (dest s
 	}
 
 	// mod is the 2 high bits
-	mod := operand >> 6
-	reg := (operand >> 3) & 0b00000111
-	rm := operand & 0b00000111
+	mod, reg, rm := parseOperand(operand)
 
 	return d.decodeBinaryRegOrMem(instructionName, mod, reg, rm, isWord, dir)
+}
+
+// [100000|s|w] [mod|<regPattern>|r/m] [disp-lo?] [disp-hi?] [data] [data if s|w = 0|1]
+func buildImmediateWithRegOrMemInstruction(instruction string, instructionName string, regPattern byte, operation byte, d *Decoder) (string, error) {
+	// the & 0b00 is to discard all the other bits and leave the ones we care about
+	operationType := operation & 0b00000001
+	verifyOperationType(operationType)
+	isWord := operationType == WordOperation
+
+	sign := (operation >> 1) & 0b00000001
+	verifySign(sign)
+	isSigned := sign == SignExtension
+
+	operand, ok := d.next()
+	if ok == false {
+		return "", fmt.Errorf("expected to get an operand for the '%s' instruction", instructionName)
+	}
+
+	mod, reg, rm := parseOperand(operand)
+
+	if reg != regPattern {
+		return "", fmt.Errorf("expected the reg field to be %.3b for the '%s' instruction", regPattern, instructionName)
+	}
+
+	dest, err := d.decodeUnaryRegOrMem(instructionName, mod, rm, isWord)
+	if err != nil {
+		return "", err
+	}
+
+	// the 8086 uses optimization technique - instead of using two bytes to represent a 16-bit immediate value, it can use one byte and sign-extend it, saving a byte in the instruction encoding when the immediate value is small enough to fit in a signed byte.
+	immediateValue, err := d.decodeImmediate(instructionName, isWord && !isSigned)
+	if err != nil {
+		return "", err
+	}
+
+	size := ""
+	if isWord {
+		size = "word"
+	} else {
+		size = "byte"
+	}
+
+	var builder strings.Builder
+	fmt.Fprintf(&builder, "%s %s, ", instruction, dest)
+
+	// we need to specify the size of the value
+	if mod != RegisterModeFieldEncoding {
+		// add [bp + 75], byte 12
+		// sub [bp + 75], word 512
+		builder.WriteString(size + " ")
+	}
+
+	if isSigned {
+		truncated := uint8(immediateValue)
+		fmt.Fprintf(&builder, "%d", int8(truncated))
+	} else {
+		fmt.Fprintf(&builder, "%d", immediateValue)
+	}
+
+	builder.WriteString("\n")
+
+	return builder.String(), nil
 }
 
 // [xxxxxxx|w] [data] [data if w = 1]

@@ -351,8 +351,23 @@ func (d *Decoder) Decode() ([]byte, error) {
 			instruction, err = subImmediateFromRegOrMem(operation, d)
 		case d.matchPattern("SUB: Immediate from accumulator", operation, "0b0010110w"):
 			instruction, err = subImmediateFromAccumulator(operation, d)
+
 		// SBB = Subtract with borrow
+		case d.matchPattern("SBB: Reg/memory and register to either", operation, "0b000110dw"):
+			instruction, err = sbbRegOrMemFromReg(operation, d)
+		case d.matchPattern("SBB: Immediate to register/memory", operation, "0b100000sw|0b__011___"):
+			instruction, err = sbbImmediateFromRegOrMem(operation, d)
+		case d.matchPattern("SBB: Immediate from accumulator", operation, "0b0001110w"):
+			instruction, err = sbbImmediateFromAccumulator(operation, d)
+
 		// DEC = Decrement
+		case d.matchPattern("DEC: Register/memory", operation, "0b1111111w|0b__001___"):
+			instruction, err = decRegOrMem(operation, d)
+		case d.matchPattern("DEC: Register", operation, "0b01001reg"):
+			instruction, err = decReg(operation, d)
+
+		case d.matchPattern("NEG: Change sign", operation, "0b1111011w|0b__011___"):
+			instruction, err = neg(operation, d)
 
 		// CMP = Compare
 		case d.matchPattern("CMP: Reg/memory and register", operation, "0b001110dw"):

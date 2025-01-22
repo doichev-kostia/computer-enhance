@@ -25,7 +25,47 @@ func daa(operation byte, d *Decoder) (string, error) {
 	return "daa\n", nil
 }
 
-// [000000|d|w] [mod|reg|r/m] [disp-lo] [disp-hi]
+// [1111011|w] [mod|011|r/m] [disp-lo?] [disp-hi?]
+func neg(operation byte, d *Decoder) (string, error) {
+	// the & 0b00 is to discard all the other bits and leave the ones we care about
+	operationType := operation & 0b00000001
+	verifyOperationType(operationType)
+	isWord := operationType == WordOperation
+
+	operand, ok := d.next()
+	if ok == false {
+		return "", fmt.Errorf("expected to get an operand for the 'NEG: Change sign' instruction")
+	}
+
+	mod := operand >> 6
+	reg := (operand >> 3) & 0b00000111
+	rm := operand & 0b00000111
+
+	// must be 011 according to the "Instruction reference"
+	if reg != 0b011 {
+		return "", fmt.Errorf("expected the reg field to be 011 for the 'NEG: Change sign' instruction")
+	}
+
+	dest, err := d.decodeUnaryRegOrMem("NEG: Change sign", mod, rm, isWord)
+	if err != nil {
+		return "", err
+	}
+
+	size := ""
+	if isWord {
+		size = "word"
+	} else {
+		size = "byte"
+	}
+
+	if mod != RegisterModeFieldEncoding {
+		return fmt.Sprintf("neg %s %s\n", size, dest), nil
+	} else {
+		return fmt.Sprintf("neg %s\n", dest), nil
+	}
+}
+
+// [000000|d|w] [mod|reg|r/m] [disp-lo?] [disp-hi?]
 func addRegOrMemToReg(operation byte, d *Decoder) (string, error) {
 	// the & 0b00 is to discard all the other bits and leave the ones we care about
 	operationType := operation & 0b00000001
@@ -55,7 +95,7 @@ func addRegOrMemToReg(operation byte, d *Decoder) (string, error) {
 	return fmt.Sprintf("add %s, %s\n", dest, src), nil
 }
 
-// [100000|s|w] [mod|000|r/m] [disp-lo] [disp-hi] [data] [data if s|w = 0|1]
+// [100000|s|w] [mod|000|r/m] [disp-lo?] [disp-hi?] [data] [data if s|w = 0|1]
 func addImmediateToRegOrMem(operation byte, d *Decoder) (string, error) {
 	// the & 0b00 is to discard all the other bits and leave the ones we care about
 	operationType := operation & 0b00000001
@@ -141,7 +181,7 @@ func addImmediateToAccumulator(operation byte, d *Decoder) (string, error) {
 	return fmt.Sprintf("add %s, %d\n", regName, immediateValue), nil
 }
 
-// [000100|d|w] [mod|reg|r/m] [disp-lo] [disp-hi]
+// [000100|d|w] [mod|reg|r/m] [disp-lo?] [disp-hi?]
 func adcRegOrMemToReg(operation byte, d *Decoder) (string, error) {
 	// the & 0b00 is to discard all the other bits and leave the ones we care about
 	operationType := operation & 0b00000001
@@ -171,7 +211,7 @@ func adcRegOrMemToReg(operation byte, d *Decoder) (string, error) {
 	return fmt.Sprintf("adc %s, %s\n", dest, src), nil
 }
 
-// [100000|s|w] [mod|010|r/m] [disp-lo] [disp-hi] [data] [data if s|w = 0|1]
+// [100000|s|w] [mod|010|r/m] [disp-lo?] [disp-hi?] [data] [data if s|w = 0|1]
 func adcImmediateToRegOrMem(operation byte, d *Decoder) (string, error) {
 	// the & 0b00 is to discard all the other bits and leave the ones we care about
 	operationType := operation & 0b00000001
@@ -257,7 +297,7 @@ func adcImmediateToAccumulator(operation byte, d *Decoder) (string, error) {
 	return fmt.Sprintf("adc %s, %d\n", regName, immediateValue), nil
 }
 
-// [1111111|w] [mod|000|r/m] [disp-lo] [disp-hi]
+// [1111111|w] [mod|000|r/m] [disp-lo?] [disp-hi?]
 func incRegOrMem(operation byte, d *Decoder) (string, error) {
 	// the & 0b00 is to discard all the other bits and leave the ones we care about
 	operationType := operation & 0b00000001
@@ -306,7 +346,7 @@ func incReg(operation byte, d *Decoder) (string, error) {
 	return fmt.Sprintf("inc %s\n", regName), nil
 }
 
-// [001010|d|w] [mod|reg|r/m] [disp-lo] [disp-hi]
+// [001010|d|w] [mod|reg|r/m] [disp-lo?] [disp-hi?]
 func subRegOrMemFromReg(operation byte, d *Decoder) (string, error) {
 	// the & 0b00 is to discard all the other bits and leave the ones we care about
 	operationType := operation & 0b00000001
@@ -336,7 +376,7 @@ func subRegOrMemFromReg(operation byte, d *Decoder) (string, error) {
 	return fmt.Sprintf("sub %s, %s\n", dest, src), nil
 }
 
-// [100000|s|w] [mod|101|r/m] [disp-lo] [disp-hi] [data] [data if s|w = 0|1]
+// [100000|s|w] [mod|101|r/m] [disp-lo?] [disp-hi?] [data] [data if s|w = 0|1]
 func subImmediateFromRegOrMem(operation byte, d *Decoder) (string, error) {
 	// the & 0b00 is to discard all the other bits and leave the ones we care about
 	operationType := operation & 0b00000001
@@ -422,7 +462,175 @@ func subImmediateFromAccumulator(operation byte, d *Decoder) (string, error) {
 	return fmt.Sprintf("sub %s, %d\n", regName, immediateValue), nil
 }
 
-// [001110|d|w] [mod|reg|r/m] [disp-lo] [disp-hi]
+// [000110|d|w] [mod|011|r/m] [disp-lo?] [disp-hi?]
+func sbbRegOrMemFromReg(operation byte, d *Decoder) (string, error) {
+	// the & 0b00 is to discard all the other bits and leave the ones we care about
+	operationType := operation & 0b00000001
+	verifyOperationType(operationType)
+	isWord := operationType == WordOperation
+
+	// direction is the 2nd bit
+	// the & 0b00 is to discard all the other bits and leave the ones we care about
+	dir := (operation >> 1) & 0b00000001
+	verifyDirection(dir)
+
+	operand, ok := d.next()
+	if ok == false {
+		return "", fmt.Errorf("expected to get an operand for the 'SUB: Reg/memory and register to either' instruction")
+	}
+
+	// mod is the 2 high bits
+	mod := operand >> 6
+	reg := (operand >> 3) & 0b00000111
+	rm := operand & 0b00000111
+
+	dest, src, err := d.decodeBinaryRegOrMem("SBB: Reg/memory and register to either", mod, reg, rm, isWord, dir)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("sbb %s, %s\n", dest, src), nil
+
+}
+
+// [100000|s|w] [mod|011|r/m] [disp-lo?] [disp-hi?] [data] [data if s|w = 0|1]
+func sbbImmediateFromRegOrMem(operation byte, d *Decoder) (string, error) {
+
+	// the & 0b00 is to discard all the other bits and leave the ones we care about
+	operationType := operation & 0b00000001
+	verifyOperationType(operationType)
+	isWord := operationType == WordOperation
+
+	sign := (operation >> 1) & 0b00000001
+	verifySign(sign)
+	isSigned := sign == SignExtension
+
+	operand, ok := d.next()
+	if ok == false {
+		return "", fmt.Errorf("expected to get an operand for the 'SBB: immediate from register/memory' instruction")
+	}
+
+	mod := operand >> 6
+	reg := (operand >> 3) & 0b00000111
+	rm := operand & 0b00000111
+
+	// must be 011 according to the "Instruction reference"
+	if reg != 0b011 {
+		return "", fmt.Errorf("expected the reg field to be 011 for the 'SBB: immediate from register/memory' instruction")
+	}
+
+	dest, err := d.decodeUnaryRegOrMem("SBB: immediate from register/memory", mod, rm, isWord)
+	if err != nil {
+		return "", err
+	}
+
+	// the 8086 uses optimization technique - instead of using two bytes to represent a 16-bit immediate value, it can use one byte and sign-extend it, saving a byte in the instruction encoding when the immediate value is small enough to fit in a signed byte.
+	immediateValue, err := d.decodeImmediate("SBB: immediate from register/memory", isWord && !isSigned)
+	if err != nil {
+		return "", err
+	}
+
+	size := ""
+	if isWord {
+		size = "word"
+	} else {
+		size = "byte"
+	}
+
+	var builder strings.Builder
+	fmt.Fprintf(&builder, "sbb %s, ", dest)
+
+	// we need to specify the size of the value
+	if mod != RegisterModeFieldEncoding {
+		// sbb [bp + 75], byte 12
+		// sbb [bp + 75], word 512
+		builder.WriteString(size + " ")
+	}
+
+	if isSigned {
+		truncated := uint8(immediateValue)
+		fmt.Fprintf(&builder, "%d", int8(truncated))
+	} else {
+		fmt.Fprintf(&builder, "%d", immediateValue)
+	}
+
+	builder.WriteString("\n")
+	return builder.String(), nil
+}
+
+// [0010110|w] [data] [data if w = 1]
+func sbbImmediateFromAccumulator(operation byte, d *Decoder) (string, error) {
+	// the & 0b00 is to discard all the other bits and leave the ones we care about
+	operationType := operation & 0b00000001
+	verifyOperationType(operationType)
+	isWord := operationType == WordOperation
+
+	immediateValue, err := d.decodeImmediate("SBB: immediate to accumulator", isWord)
+	if err != nil {
+		return "", err
+	}
+
+	regName := ""
+	if isWord {
+		regName = "ax"
+	} else {
+		regName = "al"
+	}
+
+	return fmt.Sprintf("sbb %s, %d\n", regName, immediateValue), nil
+
+}
+
+// [1111111|w] [mod|001|r/m] [disp-lo?] [disp-hi?]
+func decRegOrMem(operation byte, d *Decoder) (string, error) {
+	// the & 0b00 is to discard all the other bits and leave the ones we care about
+	operationType := operation & 0b00000001
+	verifyOperationType(operationType)
+	isWord := operationType == WordOperation
+
+	operand, ok := d.next()
+	if ok == false {
+		return "", fmt.Errorf("expected to get an operand for the 'DEC: register/memory' instruction")
+	}
+
+	mod := operand >> 6
+	reg := (operand >> 3) & 0b00000111
+	rm := operand & 0b00000111
+
+	// must be 001 according to the "Instruction reference"
+	if reg != 0b001 {
+		return "", fmt.Errorf("expected the reg field to be 001 for the 'DEC: register/memory' instruction")
+	}
+
+	dest, err := d.decodeUnaryRegOrMem("DEC: register/memory", mod, rm, isWord)
+	if err != nil {
+		return "", err
+	}
+
+	size := ""
+	if isWord {
+		size = "word"
+	} else {
+		size = "byte"
+	}
+
+	if mod != RegisterModeFieldEncoding {
+		return fmt.Sprintf("dec %s %s\n", size, dest), nil
+	} else {
+		return fmt.Sprintf("dec %s\n", dest), nil
+	}
+}
+
+// [01001|reg]
+// Word operation
+func decReg(operation byte, d *Decoder) (string, error) {
+	reg := operation & 0b00000111
+	regName := WordOperationRegisterFieldEncoding[reg]
+
+	return fmt.Sprintf("dec %s\n", regName), nil
+}
+
+// [001110|d|w] [mod|reg|r/m] [disp-lo?] [disp-hi?]
 func cmpRegOrMemWithReg(operation byte, d *Decoder) (string, error) {
 	// the & 0b00 is to discard all the other bits and leave the ones we care about
 	operationType := operation & 0b00000001
@@ -452,7 +660,7 @@ func cmpRegOrMemWithReg(operation byte, d *Decoder) (string, error) {
 	return fmt.Sprintf("cmp %s, %s\n", dest, src), nil
 }
 
-// [100000|s|w] [mod|111|r/m] [disp-lo] [disp-hi] [data] [data if s|w = 0|1]
+// [100000|s|w] [mod|111|r/m] [disp-lo?] [disp-hi?] [data] [data if s|w = 0|1]
 func cmpImmediateWithRegOrMem(operation byte, d *Decoder) (string, error) {
 	// the & 0b00 is to discard all the other bits and leave the ones we care about
 	operationType := operation & 0b00000001

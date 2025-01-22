@@ -286,15 +286,15 @@ func (d *Decoder) Decode() ([]byte, error) {
 
 		// IN
 		case d.matchPattern("IN: Fixed port", operation, "0b1110010w"):
-			panic("TODO: IN: Fixed port")
+			instruction, err = inputFromFixedPort(operation, d)
 		case d.matchPattern("IN: Variable port", operation, "0b1110110w"):
-			panic("TODO: IN: Variable port")
+			instruction, err = inputFromVariablePort(operation, d)
 
 		// OUT
 		case d.matchPattern("OUT: Fixed port", operation, "0b1110011w"):
-			panic("TODO: OUT: Fixed port")
+			instruction, err = outputToFixedPort(operation, d)
 		case d.matchPattern("OUT: Variable port", operation, "0b1110111w"):
-			panic("TODO: OUT: Variable port")
+			instruction, err = outputToVariablePort(operation, d)
 		case d.matchPattern("OUT: XLAT - Translate byte to AL", operation, "0b11010111"):
 			panic("TODO: OUT: XLAT - Translate byte to AL")
 		case d.matchPattern("OUT: LEA - Load effective address to register", operation, "0b10001101"):

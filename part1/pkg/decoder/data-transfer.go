@@ -258,6 +258,7 @@ func popSegmentReg(operation byte, d *Decoder) (string, error) {
 }
 
 // [100001|w] [mod|reg|r/m] [disp-lo] [disp-hi]
+// Reg is always source
 func exchangeRegOrMemWithReg(operation byte, d *Decoder) (string, error) {
 	const dir = RegIsSource
 
@@ -290,4 +291,122 @@ func exchangeRegWithAccumulator(operation byte, d *Decoder) (string, error) {
 	regName := WordOperationRegisterFieldEncoding[reg]
 
 	return fmt.Sprintf("xchg ax, %s\n", regName), nil
+}
+
+// [1110010|w] [data-8]
+func inputFromFixedPort(operation byte, d *Decoder) (string, error) {
+	// the & 0b00 is to discard all the other bits and leave the ones we care about
+	operationType := operation & 0b00000001
+	verifyOperationType(operationType)
+	isWord := operationType == WordOperation
+
+	acc := ""
+	if isWord {
+		acc = "ax"
+	} else {
+		acc = "al"
+	}
+
+	port, ok := d.next()
+	if ok == false {
+		return "", fmt.Errorf("expected to get a port number for the 'IN: from fixed port' instruction")
+	}
+
+	return fmt.Sprintf("in %s, %d\n", acc, port), nil
+}
+
+// [1110110|w]
+func inputFromVariablePort(operation byte, d *Decoder) (string, error) {
+	// the & 0b00 is to discard all the other bits and leave the ones we care about
+	operationType := operation & 0b00000001
+	verifyOperationType(operationType)
+	isWord := operationType == WordOperation
+
+	acc := ""
+	if isWord {
+		acc = "ax"
+	} else {
+		acc = "al"
+	}
+
+	return fmt.Sprintf("in %s, dx\n", acc), nil
+}
+
+// [1110011w] [data-8]
+func outputToFixedPort(operation byte, d *Decoder) (string, error) {
+	// the & 0b00 is to discard all the other bits and leave the ones we care about
+	operationType := operation & 0b00000001
+	verifyOperationType(operationType)
+	isWord := operationType == WordOperation
+
+	acc := ""
+	if isWord {
+		acc = "ax"
+	} else {
+		acc = "al"
+	}
+
+	port, ok := d.next()
+	if ok == false {
+		return "", fmt.Errorf("expected to get a port number for the 'OUT: to a fixed port' instruction")
+	}
+
+	return fmt.Sprintf("out %d, %s\n", port, acc), nil
+}
+
+// [1110111|w]
+func outputToVariablePort(operation byte, d *Decoder) (string, error) {
+	// the & 0b00 is to discard all the other bits and leave the ones we care about
+	operationType := operation & 0b00000001
+	verifyOperationType(operationType)
+	isWord := operationType == WordOperation
+
+	acc := ""
+	if isWord {
+		acc = "ax"
+	} else {
+		acc = "al"
+	}
+
+	return fmt.Sprintf("out dx, %s\n", acc), nil
+}
+
+// [11010111]
+func outputToXLAT(operation byte, d *Decoder) (string, error) {
+	return "", nil
+}
+
+// [10001101] [mod|reg|r/m] [disp-lo] [disp-hi]
+func outputToLEA(operation byte, d *Decoder) (string, error) {
+	return "", nil
+}
+
+// [11000101] [mod|reg|r/m] [disp-lo] [disp-hi]
+func outputToLDS(operation byte, d *Decoder) (string, error) {
+	return "", nil
+}
+
+// [11000100] [mod|reg|r/m] [disp-lo] [disp-hi]
+func outputToLES(operation byte, d *Decoder) (string, error) {
+	return "", nil
+}
+
+// [10011111]
+func outputToLAHF(operation byte, d *Decoder) (string, error) {
+	return "", nil
+}
+
+// [10011110]
+func outputToSAHF(operation byte, d *Decoder) (string, error) {
+	return "", nil
+}
+
+// [10011100]
+func outputToPUSHF(operation byte, d *Decoder) (string, error) {
+	return "", nil
+}
+
+// [10011101]
+func outputToPOPF(operation byte, d *Decoder) (string, error) {
+	return "", nil
 }

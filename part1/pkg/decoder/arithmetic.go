@@ -85,7 +85,7 @@ func cwd(operation byte, d *Decoder) (string, error) {
 
 // [000000|d|w] [mod|reg|r/m] [disp-lo?] [disp-hi?]
 func addRegOrMemToReg(operation byte, d *Decoder) (string, error) {
-	dest, src, err := regOrMemWithReg("ADD: Reg/memory with register to either", operation, d)
+	dest, src, err := d.regOrMemWithReg("ADD: Reg/memory with register to either", operation)
 	if err != nil {
 		return "", err
 	}
@@ -94,7 +94,7 @@ func addRegOrMemToReg(operation byte, d *Decoder) (string, error) {
 
 // [100000|s|w] [mod|000|r/m] [disp-lo?] [disp-hi?] [data] [data if s|w = 0|1]
 func addImmediateToRegOrMem(operation byte, d *Decoder) (string, error) {
-	instruction, err := buildImmediateWithRegOrMemInstruction("add", 0b000, "ADD: immediate to register/memory", operation, d)
+	instruction, err := buildImmediateWithRegOrMemArithmeticInstruction("add", 0b000, "ADD: immediate to register/memory", operation, d)
 	if err != nil {
 		return "", err
 	}
@@ -103,7 +103,7 @@ func addImmediateToRegOrMem(operation byte, d *Decoder) (string, error) {
 
 // [0000010|w] [data] [data if w = 1]
 func addImmediateToAccumulator(operation byte, d *Decoder) (string, error) {
-	regName, immediateValue, err := immediateWithAccumulator("ADD: immediate to accumulator", operation, d)
+	regName, immediateValue, err := d.immediateWithAccumulator("ADD: immediate to accumulator", operation)
 	if err != nil {
 		return "", err
 	}
@@ -113,7 +113,7 @@ func addImmediateToAccumulator(operation byte, d *Decoder) (string, error) {
 
 // [000100|d|w] [mod|reg|r/m] [disp-lo?] [disp-hi?]
 func adcRegOrMemToReg(operation byte, d *Decoder) (string, error) {
-	dest, src, err := regOrMemWithReg("ADC: Reg/memory with register to either", operation, d)
+	dest, src, err := d.regOrMemWithReg("ADC: Reg/memory with register to either", operation)
 	if err != nil {
 		return "", err
 	}
@@ -123,7 +123,7 @@ func adcRegOrMemToReg(operation byte, d *Decoder) (string, error) {
 
 // [100000|s|w] [mod|010|r/m] [disp-lo?] [disp-hi?] [data] [data if s|w = 0|1]
 func adcImmediateToRegOrMem(operation byte, d *Decoder) (string, error) {
-	instruction, err := buildImmediateWithRegOrMemInstruction("adc", 0b010, "ADC: immediate to register/memory", operation, d)
+	instruction, err := buildImmediateWithRegOrMemArithmeticInstruction("adc", 0b010, "ADC: immediate to register/memory", operation, d)
 	if err != nil {
 		return "", err
 	}
@@ -132,7 +132,7 @@ func adcImmediateToRegOrMem(operation byte, d *Decoder) (string, error) {
 
 // [0001010|w] [data] [data if w = 1]
 func adcImmediateToAccumulator(operation byte, d *Decoder) (string, error) {
-	regName, immediateValue, err := immediateWithAccumulator("ADC: immediate to accumulator", operation, d)
+	regName, immediateValue, err := d.immediateWithAccumulator("ADC: immediate to accumulator", operation)
 	if err != nil {
 		return "", err
 	}
@@ -191,7 +191,7 @@ func incReg(operation byte, d *Decoder) (string, error) {
 
 // [001010|d|w] [mod|reg|r/m] [disp-lo?] [disp-hi?]
 func subRegOrMemFromReg(operation byte, d *Decoder) (string, error) {
-	dest, src, err := regOrMemWithReg("SUB: Reg/memory and register to either", operation, d)
+	dest, src, err := d.regOrMemWithReg("SUB: Reg/memory and register to either", operation)
 	if err != nil {
 		return "", err
 	}
@@ -201,7 +201,7 @@ func subRegOrMemFromReg(operation byte, d *Decoder) (string, error) {
 
 // [100000|s|w] [mod|101|r/m] [disp-lo?] [disp-hi?] [data] [data if s|w = 0|1]
 func subImmediateFromRegOrMem(operation byte, d *Decoder) (string, error) {
-	instruction, err := buildImmediateWithRegOrMemInstruction("sub", 0b101, "SUB: immediate from register/memory", operation, d)
+	instruction, err := buildImmediateWithRegOrMemArithmeticInstruction("sub", 0b101, "SUB: immediate from register/memory", operation, d)
 	if err != nil {
 		return "", err
 	}
@@ -210,7 +210,7 @@ func subImmediateFromRegOrMem(operation byte, d *Decoder) (string, error) {
 
 // [0010110|w] [data] [data if w = 1]
 func subImmediateFromAccumulator(operation byte, d *Decoder) (string, error) {
-	regName, immediateValue, err := immediateWithAccumulator("SUB: immediate from accumulator", operation, d)
+	regName, immediateValue, err := d.immediateWithAccumulator("SUB: immediate from accumulator", operation)
 	if err != nil {
 		return "", err
 	}
@@ -220,7 +220,7 @@ func subImmediateFromAccumulator(operation byte, d *Decoder) (string, error) {
 
 // [000110|d|w] [mod|reg|r/m] [disp-lo?] [disp-hi?]
 func sbbRegOrMemFromReg(operation byte, d *Decoder) (string, error) {
-	dest, src, err := regOrMemWithReg("SBB: Reg/memory and register to either", operation, d)
+	dest, src, err := d.regOrMemWithReg("SBB: Reg/memory and register to either", operation)
 	if err != nil {
 		return "", err
 	}
@@ -231,7 +231,7 @@ func sbbRegOrMemFromReg(operation byte, d *Decoder) (string, error) {
 
 // [100000|s|w] [mod|011|r/m] [disp-lo?] [disp-hi?] [data] [data if s|w = 0|1]
 func sbbImmediateFromRegOrMem(operation byte, d *Decoder) (string, error) {
-	instruction, err := buildImmediateWithRegOrMemInstruction("sbb", 0b011, "SBB: immediate from register/memory", operation, d)
+	instruction, err := buildImmediateWithRegOrMemArithmeticInstruction("sbb", 0b011, "SBB: immediate from register/memory", operation, d)
 	if err != nil {
 		return "", err
 	}
@@ -240,7 +240,7 @@ func sbbImmediateFromRegOrMem(operation byte, d *Decoder) (string, error) {
 
 // [0010110|w] [data] [data if w = 1]
 func sbbImmediateFromAccumulator(operation byte, d *Decoder) (string, error) {
-	regName, immediateValue, err := immediateWithAccumulator("SBB: immediate from accumulator", operation, d)
+	regName, immediateValue, err := d.immediateWithAccumulator("SBB: immediate from accumulator", operation)
 	if err != nil {
 		return "", err
 	}
@@ -299,7 +299,7 @@ func decReg(operation byte, d *Decoder) (string, error) {
 
 // [001110|d|w] [mod|reg|r/m] [disp-lo?] [disp-hi?]
 func cmpRegOrMemWithReg(operation byte, d *Decoder) (string, error) {
-	dest, src, err := regOrMemWithReg("CMP: Reg/memory and register", operation, d)
+	dest, src, err := d.regOrMemWithReg("CMP: Reg/memory and register", operation)
 	if err != nil {
 		return "", err
 	}
@@ -309,7 +309,7 @@ func cmpRegOrMemWithReg(operation byte, d *Decoder) (string, error) {
 
 // [100000|s|w] [mod|111|r/m] [disp-lo?] [disp-hi?] [data] [data if s|w = 0|1]
 func cmpImmediateWithRegOrMem(operation byte, d *Decoder) (string, error) {
-	instruction, err := buildImmediateWithRegOrMemInstruction("cmp", 0b111, "CMP: immediate with register/memory", operation, d)
+	instruction, err := buildImmediateWithRegOrMemArithmeticInstruction("cmp", 0b111, "CMP: immediate with register/memory", operation, d)
 	if err != nil {
 		return "", err
 	}
@@ -318,7 +318,7 @@ func cmpImmediateWithRegOrMem(operation byte, d *Decoder) (string, error) {
 
 // [0011110|w] [data] [data if w = 1]
 func cmpImmediateWithAccumulator(operation byte, d *Decoder) (string, error) {
-	regName, immediateValue, err := immediateWithAccumulator("CMP: immediate with accumulator", operation, d)
+	regName, immediateValue, err := d.immediateWithAccumulator("CMP: immediate with accumulator", operation)
 	if err != nil {
 		return "", err
 	}
@@ -351,31 +351,8 @@ func idiv(operation byte, d *Decoder) (string, error) {
 	return mulOrDiv("idiv", 0b111, "IDIV: Signed division", operation, d)
 }
 
-// [xxxxxx|d|w] [mod|reg|r/m] [disp-lo?] [disp-hi?]
-func regOrMemWithReg(instructionName string, operation byte, d *Decoder) (dest string, src string, err error) {
-	// the & 0b00 is to discard all the other bits and leave the ones we care about
-	operationType := operation & 0b00000001
-	verifyOperationType(operationType)
-	isWord := operationType == WordOperation
-
-	// direction is the 2nd bit
-	// the & 0b00 is to discard all the other bits and leave the ones we care about
-	dir := (operation >> 1) & 0b00000001
-	verifyDirection(dir)
-
-	operand, ok := d.next()
-	if ok == false {
-		return "", "", fmt.Errorf("expected to get an operand for the '%s' instruction", instructionName)
-	}
-
-	// mod is the 2 high bits
-	mod, reg, rm := parseOperand(operand)
-
-	return d.decodeBinaryRegOrMem(instructionName, mod, reg, rm, isWord, dir)
-}
-
 // [100000|s|w] [mod|<regPattern>|r/m] [disp-lo?] [disp-hi?] [data] [data if s|w = 0|1]
-func buildImmediateWithRegOrMemInstruction(mnemonic string, regPattern byte, instructionName string, operation byte, d *Decoder) (string, error) {
+func buildImmediateWithRegOrMemArithmeticInstruction(mnemonic string, regPattern byte, instructionName string, operation byte, d *Decoder) (string, error) {
 	// the & 0b00 is to discard all the other bits and leave the ones we care about
 	operationType := operation & 0b00000001
 	verifyOperationType(operationType)
@@ -436,28 +413,6 @@ func buildImmediateWithRegOrMemInstruction(mnemonic string, regPattern byte, ins
 	return builder.String(), nil
 }
 
-// [xxxxxxx|w] [data] [data if w = 1]
-func immediateWithAccumulator(instructionName string, operation byte, d *Decoder) (regName string, immediateValue uint16, err error) {
-	// the & 0b00 is to discard all the other bits and leave the ones we care about
-	operationType := operation & 0b00000001
-	verifyOperationType(operationType)
-	isWord := operationType == WordOperation
-
-	immediateValue, err = d.decodeImmediate(instructionName, isWord)
-	if err != nil {
-		return "", 0, err
-	}
-
-	regName = ""
-	if isWord {
-		regName = "ax"
-	} else {
-		regName = "al"
-	}
-
-	return regName, immediateValue, nil
-}
-
 // [1111011|w] [mod|<regPattern>|r/m] [disp-lo?] [disp-hi?]
 // The "Instruction reference" refers to mul, imul, aam as "Multiplication" and div, idiv, aad, cbw, cwd as "Division"
 func mulOrDiv(mnemonic string, regPattern byte, instructionName string, operation byte, d *Decoder) (string, error) {
@@ -475,7 +430,6 @@ func mulOrDiv(mnemonic string, regPattern byte, instructionName string, operatio
 	reg := (operand >> 3) & 0b00000111
 	rm := operand & 0b00000111
 
-	// must be 011 according to the "Instruction reference"
 	if reg != regPattern {
 		return "", fmt.Errorf("expected the reg field to be %.3b for the '%s' instruction", regPattern, instructionName)
 	}

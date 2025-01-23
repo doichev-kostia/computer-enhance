@@ -35,6 +35,12 @@ const (
 	SignExtension   = byte(1) // Sign extend 8-bit immediate data to 16 bits if W=1
 )
 
+// V bit
+const (
+	CountByOne = 0 // Shift/rotate count is one
+	CountByCL  = 1 // Shift/rotate count is specified in CL register
+)
+
 // MOD field
 //
 // The MOD field indicates how many displacement bytes are present.
@@ -399,6 +405,56 @@ func (d *Decoder) Decode() ([]byte, error) {
 			instruction, err = cbw(operation, d)
 		case d.matchPattern("CWD: convert word to double word", operation, "0b10011001"):
 			instruction, err = cwd(operation, d)
+
+		// LOGIC
+		case d.matchPattern("NOT: Invert", operation, "0b1111011w|0b__010___"):
+			instruction, err = not(operation, d)
+		case d.matchPattern("SHL/SAL: Shift logical/arithmetic left", operation, "0b110100vw|0b__100___"):
+			instruction, err = shl(operation, d)
+		case d.matchPattern("SHR: Shift logical right", operation, "0b110100vw|0b__101___"):
+			instruction, err = shr(operation, d)
+		case d.matchPattern("SAR: Shift arithmetic right", operation, "0b110100vw|0b__111___"):
+			instruction, err = sar(operation, d)
+		case d.matchPattern("ROL: Rotate left", operation, "0b110100vw|0b__000___"):
+			instruction, err = rol(operation, d)
+		case d.matchPattern("ROR: Rotate right", operation, "0b110100vw|0b__001___"):
+			instruction, err = ror(operation, d)
+		case d.matchPattern("RCL: Rotate through carry left", operation, "0b110100vw|0b__010___"):
+			instruction, err = rcl(operation, d)
+		case d.matchPattern("RCR: Rotate through carry right", operation, "0b110100vw|0b__011___"):
+			instruction, err = rcr(operation, d)
+
+		// AND
+		case d.matchPattern("AND: Logical AND reg/mem with reg", operation, "0b001000dw"):
+			instruction, err = andRegOrMemWithReg(operation, d)
+		case d.matchPattern("AND: Logical AND immediate with reg/mem", operation, "0b1000000w|0b__100___"):
+			instruction, err = andImmediateWithRegOrMem(operation, d)
+		case d.matchPattern("AND: Logical AND immediate with accumulator", operation, "0b0010010w"):
+			instruction, err = andImmediateWithAccumulator(operation, d)
+
+		// TEST
+		case d.matchPattern("TEST: Logical compare reg/mem with reg", operation, "0b100001dw"): // NOTE(Kostia): for some reason, the "Instruction reference" says that test is [000100|d|w], but when using nasm v2.16.03, the opcode is different. Moreover, the table 4-13 aligns with the nasm, but 4-12 doesn't
+			instruction, err = testRegOrMemWithReg(operation, d)
+		case d.matchPattern("TEST: Logical compare immediate with reg/mem", operation, "0b1111011w|0b__000___"):
+			instruction, err = testImmediateWithRegOrMem(operation, d)
+		case d.matchPattern("TEST: Logical compare immediate with accumulator", operation, "0b1010100w"):
+			instruction, err = testImmediateWithAccumulator(operation, d)
+
+		// OR
+		case d.matchPattern("OR: Logical OR reg/mem with reg", operation, "0b000010dw"):
+			instruction, err = orRegOrMemWithReg(operation, d)
+		case d.matchPattern("OR: Logical OR immediate with reg/mem", operation, "0b1000000w|0b__001___"):
+			instruction, err = orImmediateWithRegOrMem(operation, d)
+		case d.matchPattern("OR: Logical OR immediate with accumulator", operation, "0b0000110w"):
+			instruction, err = orImmediateWithAccumulator(operation, d)
+
+		// XOR
+		case d.matchPattern("XOR: Logical XOR reg/mem with reg", operation, "0b001100dw"):
+			instruction, err = xorRegOrMemWithReg(operation, d)
+		case d.matchPattern("XOR: Logical XOR immediate with reg/mem", operation, "0b1000000w|0b__110___"): // NOTE(Kostia): for some reason, the "Instruction reference" says that xor is [0011010|w] [data] [disp-lo?] [disp-hi?] [data] [data if w=1], but when using nasm v2.16.03, the opcode is different and the [data] seems to be wrong. Moreover, the table 4-13 aligns with the nasm, but 4-12 doesn't
+			instruction, err = xorImmediateWithRegOrMem(operation, d)
+		case d.matchPattern("XOR: Logical XOR immediate with accumulator", operation, "0b0011010w"):
+			instruction, err = xorImmediateWithAccumulator(operation, d)
 
 		// JMP = Unconditional jump
 		case d.matchPattern("JMP: Direct within segment", operation, "0b11101001"):
@@ -803,6 +859,109 @@ func (d *Decoder) decodeAddress(instructionName string, isWord bool) (address ui
 	return address, nil
 }
 
+// [xxxxxxx|w] [data] [data if w = 1]
+func (d *Decoder) immediateWithAccumulator(instructionName string, operation byte) (regName string, immediateValue uint16, err error) {
+	// the & 0b00 is to discard all the other bits and leave the ones we care about
+	operationType := operation & 0b00000001
+	verifyOperationType(operationType)
+	isWord := operationType == WordOperation
+
+	immediateValue, err = d.decodeImmediate(instructionName, isWord)
+	if err != nil {
+		return "", 0, err
+	}
+
+	regName = ""
+	if isWord {
+		regName = "ax"
+	} else {
+		regName = "al"
+	}
+
+	return regName, immediateValue, nil
+}
+
+// [xxxxxx|d|w] [mod|reg|r/m] [disp-lo?] [disp-hi?]
+func (d *Decoder) regOrMemWithReg(instructionName string, operation byte) (dest string, src string, err error) {
+	// the & 0b00 is to discard all the other bits and leave the ones we care about
+	operationType := operation & 0b00000001
+	verifyOperationType(operationType)
+	isWord := operationType == WordOperation
+
+	// direction is the 2nd bit
+	// the & 0b00 is to discard all the other bits and leave the ones we care about
+	dir := (operation >> 1) & 0b00000001
+	verifyDirection(dir)
+
+	operand, ok := d.next()
+	if ok == false {
+		return "", "", fmt.Errorf("expected to get an operand for the '%s' instruction", instructionName)
+	}
+
+	// mod is the 2 high bits
+	mod, reg, rm := parseOperand(operand)
+
+	return d.decodeBinaryRegOrMem(instructionName, mod, reg, rm, isWord, dir)
+}
+
+// [xxxxxxx|w] [mod|<regPattern>|r/m] [disp-lo?] [disp-hi?] [data] [data if s|w = 0|1]
+func (d *Decoder) buildImmediateWithRegOrMemInstruction(mnemonic string, regPattern byte, instructionName string, operation byte) (string, error) {
+	// the & 0b00 is to discard all the other bits and leave the ones we care about
+	operationType := operation & 0b00000001
+	verifyOperationType(operationType)
+	isWord := operationType == WordOperation
+
+	operand, ok := d.next()
+	if ok == false {
+		return "", fmt.Errorf("expected to get an operand for the '%s' instruction", instructionName)
+	}
+
+	mod, reg, rm := parseOperand(operand)
+
+	if reg != regPattern {
+		return "", fmt.Errorf("expected the reg field to be %.3b for the '%s' instruction", regPattern, instructionName)
+	}
+
+	dest, err := d.decodeUnaryRegOrMem(instructionName, mod, rm, isWord)
+	if err != nil {
+		return "", err
+	}
+
+	immediateValue, err := d.decodeImmediate(instructionName, isWord)
+	if err != nil {
+		return "", err
+	}
+
+	size := ""
+	if isWord {
+		size = "word"
+	} else {
+		size = "byte"
+	}
+
+	var builder strings.Builder
+	fmt.Fprintf(&builder, "%s %s, ", mnemonic, dest)
+
+	// we need to specify the size of the value
+	if mod != RegisterModeFieldEncoding {
+		// mov [bp + 75], byte 42
+		// add [bp + 75], byte 12
+		// sub [bp + 75], word 512
+		builder.WriteString(size + " ")
+	}
+
+	fmt.Fprintf(&builder, "%d", immediateValue)
+
+	signedValue := int16(immediateValue)
+	if signedValue < 0 {
+		fmt.Fprintf(&builder, " ; or %d", signedValue)
+	}
+
+	builder.WriteString("\n")
+
+	return builder.String(), nil
+}
+
 // [mod|reg|r/m]
 func parseOperand(operand byte) (mod byte, reg byte, rm byte) {
 	mod = operand >> 6
@@ -826,5 +985,11 @@ func verifyDirection(dir byte) {
 func verifySign(sign byte) {
 	if sign != SignExtension && sign != NoSignExtension {
 		panic(fmt.Sprintf("The sign should be a binary value (sign or no sign). Got %d instead", sign))
+	}
+}
+
+func verifyCount(count byte) {
+	if count != CountByOne && count != CountByCL {
+		panic(fmt.Sprintf("The count should be a binary value (1 or CL). Got %d instead", count))
 	}
 }

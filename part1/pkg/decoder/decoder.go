@@ -253,6 +253,15 @@ func (d *Decoder) Decode() ([]byte, error) {
 		}
 
 		instructionPointer := d.pos
+		prefix := ""
+
+		if isLock(operation) {
+			prefix = "lock "
+			operation, ok = d.next()
+			if ok == false {
+				break
+			}
+		}
 
 		// Table 4-12. 8086 Instruction Encoding
 		switch {
@@ -521,12 +530,47 @@ func (d *Decoder) Decode() ([]byte, error) {
 			instruction, err = jumpConditionally(operation, d)
 		case d.matchPattern("LOOPNZ/LOOPNE: Loop while not zero/not equal", operation, "0b11100000"):
 			instruction, err = jumpConditionally(operation, d)
+
+		// Interrupts
+		case d.matchPattern("INT: Type specified", operation, "0b11001101"):
+			instruction, err = interruptWithType(operation, d)
+		case d.matchPattern("INT: type 3", operation, "0b11001100"):
+			instruction, err = interruptType3(operation, d) // Breakpoint
+		case d.matchPattern("INTO: interrupt on overflow", operation, "0b11001110"):
+			instruction, err = interruptOnOverflow(operation, d)
+		case d.matchPattern("IRET: Interrupt return", operation, "0b11001111"):
+			instruction, err = interruptReturn(operation, d)
+
+		// Processor control
+		case d.matchPattern("CLC: Clear carry", operation, "0b11111000"):
+			instruction, err = clc(operation, d)
+		case d.matchPattern("CMC: Complement carry", operation, "0b11110101"):
+			instruction, err = cmc(operation, d)
+		case d.matchPattern("STC: Set carry", operation, "0b11111001"):
+			instruction, err = stc(operation, d)
+		case d.matchPattern("CLD: Clear direction", operation, "0b11111100"):
+			instruction, err = cld(operation, d)
+		case d.matchPattern("STD: set direction", operation, "0b11111101"):
+			instruction, err = std(operation, d)
+		case d.matchPattern("CLI: Clear interrupt", operation, "0b11111010"):
+			instruction, err = cli(operation, d)
+		case d.matchPattern("STI: Set interrupt", operation, "0b11111011"):
+			instruction, err = sti(operation, d)
+		case d.matchPattern("HLT: Halt", operation, "0b11110100"):
+			instruction, err = hlt(operation, d)
+		case d.matchPattern("WAIT: Wait", operation, "0b10011011"):
+			instruction, err = wait(operation, d)
+
 		default:
 			panic(fmt.Sprintf("AssertionError: unexpected operation %b", int(operation)))
 		}
 
 		if err != nil {
 			return nil, err
+		}
+
+		if prefix != "" {
+			instruction = prefix + instruction
 		}
 
 		d.appendInstruction(instructionPointer, instruction)

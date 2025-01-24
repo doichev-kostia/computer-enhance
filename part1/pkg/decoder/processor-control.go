@@ -44,3 +44,9 @@ func hlt(operation byte, d *Decoder) (string, error) {
 func wait(operation byte, d *Decoder) (string, error) {
 	return "wait\n", nil
 }
+
+// [001|reg|110]
+func segmentPrefix(operation byte, d *Decoder) string {
+	reg := (operation >> 3) & 0b00000011
+	return SegmentRegisterFieldEncoding[reg]
+}

@@ -97,10 +97,10 @@ var WordOperationRegisterFieldEncoding = map[byte]string{
 }
 
 var SegmentRegisterFieldEncoding = map[byte]string{
-	0b000: "es", // extra segment
-	0b001: "cs", // code segment
-	0b010: "ss", // stack segment
-	0b011: "ds", // data segment
+	0b00: "es", // extra segment
+	0b01: "cs", // code segment
+	0b10: "ss", // stack segment
+	0b11: "ds", // data segment
 }
 
 // EffectiveAddressEquation based on the r/m (Register/Memory) field encoding
@@ -170,6 +170,7 @@ type instructionNode struct {
 type Decoder struct {
 	bytes         []byte
 	pos           int
+	segment       string // for the effective address segment override
 	head          *instructionNode
 	tail          *instructionNode
 	numberOfNodes int
@@ -182,6 +183,7 @@ func NewDecoder(bytes []byte) *Decoder {
 	return &Decoder{
 		bytes:         bytes,
 		pos:           0,
+		segment:       "",
 		head:          nil,
 		tail:          nil,
 		numberOfNodes: 0,
@@ -279,6 +281,17 @@ func (d *Decoder) Decode() ([]byte, error) {
 			if instructionPointer != instructionPointer {
 				panic("Assertion Failed: The instruction pointer must not be updated when handling prefixes")
 			}
+		}
+
+		if d.matchPattern("SEGMENT: override prefix", operation, "0b001__110") {
+			d.segment = segmentPrefix(operation, d)
+			operation, ok = d.next()
+			if ok == false {
+				// TODO: return EOF
+				break
+			}
+		} else {
+			d.segment = ""
 		}
 
 		// Table 4-12. 8086 Instruction Encoding
@@ -708,7 +721,7 @@ func (d *Decoder) decodeBinaryRegOrMem(instructionName string, mod byte, reg byt
 
 	switch mod {
 	case MemoryModeNoDisplacementFieldEncoding:
-		equation := ""
+		displacementValue := uint16(0)
 		// the exception for the direct address - 16-bit displacement for the direct address
 		if rm == 0b110 {
 			displacementLow, ok := d.next()
@@ -719,13 +732,10 @@ func (d *Decoder) decodeBinaryRegOrMem(instructionName string, mod byte, reg byt
 			if ok == false {
 				return dest, src, fmt.Errorf("expected to receive the High displacement value for direct address in the '%s' instruction", instructionName)
 			}
-			displacementValue := binary.LittleEndian.Uint16([]byte{displacementLow, displacementHigh})
-			equation = strconv.Itoa(int(displacementValue))
-		} else {
-			equation = EffectiveAddressEquation[rm]
+			displacementValue = binary.LittleEndian.Uint16([]byte{displacementLow, displacementHigh})
 		}
 
-		effectiveAddress := fmt.Sprintf("[%s]", equation)
+		effectiveAddress := d.calculateEffectiveAddress(rm, displacementValue, MemoryModeNoDisplacementFieldEncoding)
 
 		if dir == RegIsDestination {
 			dest = regName
@@ -736,18 +746,11 @@ func (d *Decoder) decodeBinaryRegOrMem(instructionName string, mod byte, reg byt
 		}
 
 	case MemoryMode8DisplacementFieldEncoding:
-		displacement, ok := d.next()
+		displacementValue, ok := d.next()
 		if ok == false {
 			return dest, src, fmt.Errorf("expected to receive the displacement value for the '%s' instruction", instructionName)
 		}
-		equation := EffectiveAddressEquation[rm]
-		signed := int8(displacement)
-		effectiveAddress := ""
-		if signed < 0 {
-			effectiveAddress = fmt.Sprintf("[%s - %d]", equation, ^signed+1) // remove the sign 1111 1011 -> 0000 0101
-		} else {
-			effectiveAddress = fmt.Sprintf("[%s + %d]", equation, displacement)
-		}
+		effectiveAddress := d.calculateEffectiveAddress(rm, uint16(displacementValue), MemoryMode8DisplacementFieldEncoding)
 
 		if dir == RegIsDestination {
 			dest = regName
@@ -767,15 +770,8 @@ func (d *Decoder) decodeBinaryRegOrMem(instructionName string, mod byte, reg byt
 			return dest, src, fmt.Errorf("expected to receive the High displacement value for the '%s' instruction", instructionName)
 		}
 
-		equation := EffectiveAddressEquation[rm]
 		displacementValue := binary.LittleEndian.Uint16([]byte{displacementLow, displacementHigh})
-		effectiveAddress := ""
-		signed := int16(displacementValue)
-		if signed < 0 {
-			effectiveAddress = fmt.Sprintf("[%s - %d]", equation, ^signed+1) // remove the sign 1111 1011 -> 0000 0101
-		} else {
-			effectiveAddress = fmt.Sprintf("[%s + %d]", equation, displacementValue)
-		}
+		effectiveAddress := d.calculateEffectiveAddress(rm, displacementValue, MemoryMode16DisplacementFieldEncoding)
 
 		if dir == RegIsDestination {
 			dest = regName
@@ -813,7 +809,7 @@ func (d *Decoder) decodeUnaryRegOrMem(instructionName string, mod byte, rm byte,
 
 	switch mod {
 	case MemoryModeNoDisplacementFieldEncoding:
-		equation := ""
+		displacementValue := uint16(0)
 		// the exception for the direct address - 16-bit displacement for the direct address
 		if rm == 0b110 {
 			displacementLow, ok := d.next()
@@ -824,26 +820,17 @@ func (d *Decoder) decodeUnaryRegOrMem(instructionName string, mod byte, rm byte,
 			if ok == false {
 				return "", fmt.Errorf("expected to receive the High displacement value for direct address in the '%s' instruction", instructionName)
 			}
-			displacementValue := binary.LittleEndian.Uint16([]byte{displacementLow, displacementHigh})
-			equation = strconv.Itoa(int(displacementValue))
-		} else {
-			equation = EffectiveAddressEquation[rm]
+			displacementValue = binary.LittleEndian.Uint16([]byte{displacementLow, displacementHigh})
 		}
 
-		regOrMem = fmt.Sprintf("[%s]", equation)
+		regOrMem = d.calculateEffectiveAddress(rm, displacementValue, MemoryModeNoDisplacementFieldEncoding)
 
 	case MemoryMode8DisplacementFieldEncoding:
-		displacement, ok := d.next()
+		displacementValue, ok := d.next()
 		if ok == false {
 			return "", fmt.Errorf("expected to receive the displacement value for the '%s' instruction", instructionName)
 		}
-		equation := EffectiveAddressEquation[rm]
-		signed := int8(displacement)
-		if signed < 0 {
-			regOrMem = fmt.Sprintf("[%s - %d]", equation, ^signed+1) // remove the sign 1111 1011 -> 0000 0101
-		} else {
-			regOrMem = fmt.Sprintf("[%s + %d]", equation, displacement)
-		}
+		regOrMem = d.calculateEffectiveAddress(rm, uint16(displacementValue), MemoryMode8DisplacementFieldEncoding)
 
 	case MemoryMode16DisplacementFieldEncoding:
 		displacementLow, ok := d.next()
@@ -855,14 +842,8 @@ func (d *Decoder) decodeUnaryRegOrMem(instructionName string, mod byte, rm byte,
 			return "", fmt.Errorf("expected to receive the High displacement value for the '%s' instruction", instructionName)
 		}
 
-		equation := EffectiveAddressEquation[rm]
 		displacementValue := binary.LittleEndian.Uint16([]byte{displacementLow, displacementHigh})
-		signed := int16(displacementValue)
-		if signed < 0 {
-			regOrMem = fmt.Sprintf("[%s - %d]", equation, ^signed+1) // remove the sign 1111 1011 -> 0000 0101
-		} else {
-			regOrMem = fmt.Sprintf("[%s + %d]", equation, displacementValue)
-		}
+		regOrMem = d.calculateEffectiveAddress(rm, displacementValue, MemoryMode16DisplacementFieldEncoding)
 
 	case RegisterModeFieldEncoding:
 		rmRegisterName := ""
@@ -1034,6 +1015,45 @@ func (d *Decoder) buildImmediateWithRegOrMemInstruction(mnemonic string, regPatt
 	builder.WriteString("\n")
 
 	return builder.String(), nil
+}
+
+func (d *Decoder) calculateEffectiveAddress(rm byte, displacementValue uint16, mod byte) string {
+	address := ""
+	if mod == MemoryModeNoDisplacementFieldEncoding {
+		equation := ""
+		// the exception for the direct address - 16-bit displacement for the direct address
+		if rm == 0b110 {
+			equation = strconv.Itoa(int(displacementValue))
+		} else {
+			equation = EffectiveAddressEquation[rm]
+		}
+
+		address = fmt.Sprintf("[%s]", equation)
+	} else if mod == MemoryMode8DisplacementFieldEncoding {
+		equation := EffectiveAddressEquation[rm]
+		signed := int8(uint8(displacementValue))
+		if signed < 0 {
+			address = fmt.Sprintf("[%s - %d]", equation, ^signed+1) // remove the sign 1111 1011 -> 0000 0101
+		} else {
+			address = fmt.Sprintf("[%s + %d]", equation, displacementValue)
+		}
+	} else if mod == MemoryMode16DisplacementFieldEncoding {
+		equation := EffectiveAddressEquation[rm]
+		signed := int16(displacementValue)
+		if signed < 0 {
+			address = fmt.Sprintf("[%s - %d]", equation, ^signed+1) // remove the sign 1111 1011 -> 0000 0101
+		} else {
+			address = fmt.Sprintf("[%s + %d]", equation, displacementValue)
+		}
+	} else {
+		panic(fmt.Errorf("AssertionError: Unknown mod for effective address calculation. %.3b", mod))
+	}
+
+	if d.segment != "" {
+		return fmt.Sprintf("%s:%s", d.segment, address)
+	} else {
+		return address
+	}
 }
 
 // [mod|reg|r/m]

@@ -44,9 +44,10 @@ func das(operation byte, d *Decoder) (string, error) {
 }
 
 // [11010100] [00001010] [disp-lo?] [disp-hi?]
+// definitions.INSTRUCTION_REFERENCE
 func aam(operation byte, d *Decoder) (string, error) {
 	// Note(Kostia)
-	// I don't know why the "Instruction reference" says there should be displacement, but there are no fields to figure that out.
+	// I don't know why the INSTRUCTION_REFERENCE says there should be displacement, but there are no fields to figure that out.
 	// Moreover, in the Table 4-13. Machine Instruction Decoding Guide the element 11010100 00001010 has no displacement either
 	next, ok := d.next()
 	if ok == false {
@@ -59,6 +60,7 @@ func aam(operation byte, d *Decoder) (string, error) {
 }
 
 // [11010101] [00001010] [disp-lo?] [disp-hi?]
+// definitions.INSTRUCTION_REFERENCE
 func aad(operation byte, d *Decoder) (string, error) {
 	// Note(Kostia)
 	// I don't know why the "Instruction reference" says there should be displacement, but there are no fields to figure that out.
@@ -414,7 +416,7 @@ func buildImmediateWithRegOrMemArithmeticInstruction(mnemonic string, regPattern
 }
 
 // [1111011|w] [mod|<regPattern>|r/m] [disp-lo?] [disp-hi?]
-// The "Instruction reference" refers to mul, imul, aam as "Multiplication" and div, idiv, aad, cbw, cwd as "Division"
+// definitions.INSTRUCTION_REFERENCE refers to mul, imul, aam as "Multiplication" and div, idiv, aad, cbw, cwd as "Division"
 func mulOrDiv(mnemonic string, regPattern byte, instructionName string, operation byte, d *Decoder) (string, error) {
 	// the & 0b00 is to discard all the other bits and leave the ones we care about
 	operationType := operation & 0b00000001

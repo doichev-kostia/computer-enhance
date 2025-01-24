@@ -7,47 +7,37 @@ import (
 	"strings"
 )
 
-// Instruction reference for 8086 CPU (https://edge.edx.org/c4x/BITSPilani/EEE231/asset/8086_family_Users_Manual_1_.pdf | page 161(pdf))
-// The "Instruction reference"👆
-// [opcode|d|m] [mod|reg|r/m] [displacement-low] [displacement-high] [data-low] [data-high]
-//    6    1 1    2   3   3
-// The intel x86 processors use Little Endian, so the low byte comes first
-// Disp-lo (Displacement low) - Low-order byte of optional 8- or 16-bit __unsigned__ displacement; MOD indicates if present.
-// Disp-hi (Displacement High) - High-order byte of optional 16-bit __unsigned__ displacement; MOD indicates if present.
-// Data-lo (Data low) - Low-order byte of 16-bit immediate constant.
-// Data-hi (Data high) - High-order byte of 16-bit immediate constant.
-
-// D bit - Direction of the operation
+// definitions.D_FIELD
 const (
 	RegIsSource      = 0
 	RegIsDestination = 1
 )
 
-// W bit
+// definitions.W_FIELD
 const (
 	ByteOperation = byte(0)
 	WordOperation = byte(1)
 )
 
-// S bit
+// definitions.S_FIELD
 const (
 	NoSignExtension = byte(0)
 	SignExtension   = byte(1) // Sign extend 8-bit immediate data to 16 bits if W=1
 )
 
-// V bit
+// definitions.V_FIELD
 const (
 	CountByOne = 0 // Shift/rotate count is one
 	CountByCL  = 1 // Shift/rotate count is specified in CL register
 )
 
-// Z bit
+// definitions.Z_FIELD
 const (
 	LoopWhileNotZero = 0
 	LoopWhileZero    = 1
 )
 
-// MOD field
+// definitions.MOD field
 //
 // The MOD field indicates how many displacement bytes are present.
 // Following Intel convention, if the displacement is two bytes,
@@ -63,7 +53,7 @@ const (
 	RegisterModeFieldEncoding             = 0b11
 )
 
-// REG (Register) field encoding - ByteOperationRegisterFieldEncoding & WordOperationRegisterFieldEncoding
+// definitions.REG (Register) field encoding - ByteOperationRegisterFieldEncoding & WordOperationRegisterFieldEncoding
 // | REG | W = 0 | W = 1|
 // ---------------------
 // | 000 | AL    | AX   |

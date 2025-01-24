@@ -41,6 +41,12 @@ const (
 	CountByCL  = 1 // Shift/rotate count is specified in CL register
 )
 
+// Z bit
+const (
+	LoopWhileNotZero = 0
+	LoopWhileZero    = 1
+)
+
 // MOD field
 //
 // The MOD field indicates how many displacement bytes are present.
@@ -246,20 +252,32 @@ func (d *Decoder) Decode() ([]byte, error) {
 	for {
 		// Section 2.7 Instruction set. p. 2-30
 		instruction := ""
+		prefix := ""
+
 		var err error
 		operation, ok := d.next()
 		if ok == false {
+			// TODO: return EOF
 			break
 		}
-
 		instructionPointer := d.pos
-		prefix := ""
 
-		if isLock(operation) {
+		// Prefix
+		switch {
+		case d.matchPattern("LOCK: Bus lock prefix", operation, "0b11110000"):
 			prefix = "lock "
+		case d.matchPattern("REP: Repeat", operation, "0b1111001z"):
+			prefix = repeatPrefix(operation, d) + " "
+		}
+
+		if prefix != "" {
 			operation, ok = d.next()
 			if ok == false {
+				// TODO: return EOF
 				break
+			}
+			if instructionPointer != instructionPointer {
+				panic("Assertion Failed: The instruction pointer must not be updated when handling prefixes")
 			}
 		}
 
@@ -464,6 +482,18 @@ func (d *Decoder) Decode() ([]byte, error) {
 			instruction, err = xorImmediateWithRegOrMem(operation, d)
 		case d.matchPattern("XOR: Logical XOR immediate with accumulator", operation, "0b0011010w"):
 			instruction, err = xorImmediateWithAccumulator(operation, d)
+
+		// STRING
+		case d.matchPattern("MOVS: move byte/word", operation, "0b1010010w"):
+			instruction, err = movs(operation, d)
+		case d.matchPattern("CMPS: compare byte/word", operation, "0b1010011w"):
+			instruction, err = cmps(operation, d)
+		case d.matchPattern("SCAS: scan byte/word", operation, "0b1010111w"):
+			instruction, err = scas(operation, d)
+		case d.matchPattern("LODS: load byte/word", operation, "0b1010110w"):
+			instruction, err = lods(operation, d)
+		case d.matchPattern("STOS: store byte/word", operation, "0b1010101w"):
+			instruction, err = stos(operation, d)
 
 		// JMP = Unconditional jump
 		case d.matchPattern("JMP: Direct within segment", operation, "0b11101001"):
@@ -1035,5 +1065,11 @@ func verifySign(sign byte) {
 func verifyCount(count byte) {
 	if count != CountByOne && count != CountByCL {
 		panic(fmt.Sprintf("The count should be a binary value (1 or CL). Got %d instead", count))
+	}
+}
+
+func verifyLoop(z byte) {
+	if z != LoopWhileNotZero && z != LoopWhileZero {
+		panic(fmt.Sprintf("The z should be a binary value (zero or not zero). Got %d instead", z))
 	}
 }

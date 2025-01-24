@@ -44,8 +44,3 @@ func hlt(operation byte, d *Decoder) (string, error) {
 func wait(operation byte, d *Decoder) (string, error) {
 	return "wait\n", nil
 }
-
-// Bus lock prefix
-func isLock(operation byte) bool {
-	return operation == 0b11110000
-}

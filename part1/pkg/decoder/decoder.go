@@ -497,13 +497,13 @@ func (d *Decoder) Decode() ([]byte, error) {
 
 		// RET = Return from CALL
 		case d.matchPattern("RET: Within segment", operation, "0b11000011"):
-			panic("TODO: RET: Within segment")
+			instruction, err = returnWithinSegment(operation, d)
 		case d.matchPattern("RET: Within seg adding immed to SP", operation, "0b11000010"):
-			panic("TODO: RET: Within seg adding immed to SP")
+			instruction, err = returnWithinSegmentAddingImmedToSP(operation, d)
 		case d.matchPattern("RET: Intersegment", operation, "0b11001011"):
-			panic("TODO: RET: Intersegment")
-		case d.matchPattern("RET: Intersegment adding immediate to SP", operation, "0b11001010"):
-			panic("TODO: RET: Intersegment adding immediate to SP")
+			instruction, err = returnIntersegment(operation, d)
+		case d.matchPattern("RET: Intersegment adding immed to SP", operation, "0b11001010"):
+			instruction, err = returnIntersegmentAddingImmedToSP(operation, d)
 
 		// Jumps
 		case d.matchPattern("JE/JZ: Jump on equal/zero", operation, "0b01110100"):

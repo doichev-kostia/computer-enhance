@@ -191,6 +191,60 @@ func jumpIndirectIntersegment(operation byte, d *Decoder) (string, error) {
 	return fmt.Sprintf("jmp far %s\n", address), nil
 }
 
+// [11000011]
+func returnWithinSegment(operation byte, d *Decoder) (string, error) {
+	return "ret\n", nil
+}
+
+// [11000010] [data-lo] [data-hi]
+// definitions.DATA_LO  definitions.DATA_HI
+func returnWithinSegmentAddingImmedToSP(operation byte, d *Decoder) (string, error) {
+	low, ok := d.next()
+	if ok == false {
+		return "", fmt.Errorf("expected to get a lower data byte in 'RET: Within segment adding immediate to SP'")
+	}
+
+	high, ok := d.next()
+	if ok == false {
+		return "", fmt.Errorf("expected to get a higher data byte in 'RET: Within segment adding immediate to SP'")
+	}
+
+	data := binary.LittleEndian.Uint16([]byte{low, high})
+	signed := int16(data)
+	if signed < 0 {
+		return fmt.Sprintf("ret %d ; or %d \n", data, signed), nil
+	} else {
+		return fmt.Sprintf("ret %d\n", data), nil
+	}
+}
+
+// [11001011]
+func returnIntersegment(operation byte, d *Decoder) (string, error) {
+	return "retf\n", nil
+}
+
+// [11001010] [data-lo] [data-hi]
+// definitions.DATA_LO  definitions.DATA_HI
+func returnIntersegmentAddingImmedToSP(operation byte, d *Decoder) (string, error) {
+	low, ok := d.next()
+	if ok == false {
+		return "", fmt.Errorf("expected to get a lower data byte in 'RET: Intersegment adding immediate to SP'")
+	}
+
+	high, ok := d.next()
+	if ok == false {
+		return "", fmt.Errorf("expected to get a higher data byte in 'RET: Intersegment adding immediate to SP'")
+	}
+
+	data := binary.LittleEndian.Uint16([]byte{low, high})
+	signed := int16(data)
+	if signed < 0 {
+		return fmt.Sprintf("retf %d ; or %d \n", data, signed), nil
+	} else {
+		return fmt.Sprintf("retf %d\n", data), nil
+	}
+}
+
 func jumpConditionally(operation byte, d *Decoder) (string, error) {
 	name := JumpNames[operation]
 	comment := ""

@@ -154,32 +154,27 @@ var JumpAlternativeNames = map[byte]string{
 type instructionNode struct {
 	value string
 	pos   int
-	next  *instructionNode
 }
 
 type Decoder struct {
-	bytes         []byte
-	pos           int
-	segment       string // for the effective address segment override
-	head          *instructionNode
-	tail          *instructionNode
-	numberOfNodes int
-	labels        map[int]string // pos:label
-	cacheKey      string
-	decoded       []byte
+	bytes    []byte
+	pos      int
+	segment  string // for the effective address segment override
+	nodes    []instructionNode
+	labels   map[int]string // pos:label
+	cacheKey string
+	decoded  []byte
 }
 
 func NewDecoder(bytes []byte) *Decoder {
 	return &Decoder{
-		bytes:         bytes,
-		pos:           0,
-		segment:       "",
-		head:          nil,
-		tail:          nil,
-		numberOfNodes: 0,
-		labels:        make(map[int]string),
-		cacheKey:      "",
-		decoded:       make([]byte, 0),
+		bytes:    bytes,
+		pos:      0,
+		segment:  "",
+		nodes:    make([]instructionNode, 0),
+		labels:   make(map[int]string),
+		cacheKey: "",
+		decoded:  make([]byte, 0),
 	}
 }
 
@@ -187,25 +182,13 @@ func (d *Decoder) appendInstruction(pos int, value string) {
 	n := instructionNode{
 		value: value,
 		pos:   pos,
-		next:  nil,
 	}
 
-	if d.head == nil && d.tail == nil {
-		d.head = &n
-		d.tail = &n
-	} else {
-		if d.head == nil || d.tail == nil {
-			panic("Assertion error: head and tail should be either both nil or both not nil")
-		}
-
-		d.tail.next = &n
-		d.tail = &n
-	}
-	d.numberOfNodes += 1
+	d.nodes = append(d.nodes, n)
 }
 
 func (d *Decoder) computeCacheKey() string {
-	return fmt.Sprintf("n=%d;l=%d", d.numberOfNodes, len(d.labels))
+	return fmt.Sprintf("n=%d;l=%d", len(d.nodes), len(d.labels))
 }
 
 func (d *Decoder) GetDecoded() []byte {
@@ -214,25 +197,17 @@ func (d *Decoder) GetDecoded() []byte {
 		return d.decoded
 	}
 
-	n := d.head
-	iter := 0
 	d.decoded = d.decoded[:0] // reuse the same array
-	for n != nil {
-		iter += 1
-		if iter > 15_000_000_000 {
-			panic("[GetDecoded] Iterated over 15 billion nodes. This is probably a mistake")
-		}
-
+	for _, node := range d.nodes {
 		instruction := ""
-		label, ok := d.labels[n.pos-1] // as we start counting instructions from 1, instead of 0
+		label, ok := d.labels[node.pos-1] // as we start counting instructions from 1, instead of 0
 		if ok {
 			instruction += fmt.Sprintf("%s:\n", label)
 		}
 
-		instruction += n.value
+		instruction += node.value
 		d.decoded = append(d.decoded, []byte(instruction)...)
 
-		n = n.next
 	}
 
 	d.cacheKey = cacheKey

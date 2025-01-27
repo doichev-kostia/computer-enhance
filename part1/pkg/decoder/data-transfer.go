@@ -114,7 +114,14 @@ func moveRegMemToReg(operation byte, d *Decoder) (string, error) {
 	reg := (operand >> 3) & 0b00000111
 	rm := operand & 0b00000111
 
-	dest, src, err := d.decodeBinaryRegOrMem("Register/memory to/from register", mod, reg, rm, isWord, dir)
+	regName := ""
+	if isWord {
+		regName = WordOperationRegisterFieldEncoding[reg]
+	} else {
+		regName = ByteOperationRegisterFieldEncoding[reg]
+	}
+
+	dest, src, err := d.decodeBinaryRegOrMem("Register/memory to/from register", mod, regName, rm, isWord, dir)
 	if err != nil {
 		return "", err
 	}
@@ -164,6 +171,58 @@ func moveAccumulatorToMemory(operation byte, d *Decoder) (string, error) {
 	}
 
 	return fmt.Sprintf("mov [%d], %s\n", address, regName), nil
+}
+
+// [10001110] [mod|0|SR|r/m] [disp-lo?] [disp-hi?]
+func moveRegOrMemToSegment(operation byte, d *Decoder) (string, error) {
+	const isWord = true
+	const dir = RegIsDestination
+
+	operand, ok := d.next()
+	if ok == false {
+		return "", fmt.Errorf("expected to get an operand for the 'MOV: Register/memory to segment' instruction")
+	}
+
+	mod, reg, rm := decodeOperand(operand)
+	if reg&0b000 != 0 {
+		return "", fmt.Errorf("expected the reg field to start with 0 for the 'MOV: Register/memory to segment' instruction")
+	}
+
+	sr := reg & 0b011
+	regName := SegmentRegisterFieldEncoding[sr]
+
+	dest, src, err := d.decodeBinaryRegOrMem("MOV: Register/memory to segment", mod, regName, rm, isWord, dir)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("mov %s, %s\n", dest, src), nil
+}
+
+// [10001100] [mod|0|SR|r/m] [disp-lo?] [disp-hi?]
+func moveSegmentToRegOrMem(operation byte, d *Decoder) (string, error) {
+	const isWord = true
+	const dir = RegIsSource
+
+	operand, ok := d.next()
+	if ok == false {
+		return "", fmt.Errorf("expected to get an operand for the 'MOV: Segment to register/memory' instruction")
+	}
+
+	mod, reg, rm := decodeOperand(operand)
+	if reg&0b000 != 0 {
+		return "", fmt.Errorf("expected the reg field to start with 0 for the 'MOV: Segment to register/memory' instruction")
+	}
+
+	sr := reg & 0b011
+	regName := SegmentRegisterFieldEncoding[sr]
+
+	dest, src, err := d.decodeBinaryRegOrMem("MOV: Segment to register/memory", mod, regName, rm, isWord, dir)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("mov %s, %s\n", dest, src), nil
 }
 
 // [11111111] [mod|110|r/m] [disp-lo] [disp-hi]
@@ -276,7 +335,14 @@ func exchangeRegOrMemWithReg(operation byte, d *Decoder) (string, error) {
 	reg := (operand >> 3) & 0b00000111
 	rm := operand & 0b00000111
 
-	dest, src, err := d.decodeBinaryRegOrMem("XCHG: Register/memory with register", mod, reg, rm, isWord, dir)
+	regName := ""
+	if isWord {
+		regName = WordOperationRegisterFieldEncoding[reg]
+	} else {
+		regName = ByteOperationRegisterFieldEncoding[reg]
+	}
+
+	dest, src, err := d.decodeBinaryRegOrMem("XCHG: Register/memory with register", mod, regName, rm, isWord, dir)
 	if err != nil {
 		return "", err
 	}
@@ -390,7 +456,14 @@ func lea(operation byte, d *Decoder) (string, error) {
 	reg := (operand >> 3) & 0b00000111
 	rm := operand & 0b00000111
 
-	dest, src, err := d.decodeBinaryRegOrMem("LEA", mod, reg, rm, isWord, dir)
+	regName := ""
+	if isWord {
+		regName = WordOperationRegisterFieldEncoding[reg]
+	} else {
+		regName = ByteOperationRegisterFieldEncoding[reg]
+	}
+
+	dest, src, err := d.decodeBinaryRegOrMem("LEA", mod, regName, rm, isWord, dir)
 	if err != nil {
 		return "", err
 	}
@@ -412,7 +485,14 @@ func lds(operation byte, d *Decoder) (string, error) {
 	reg := (operand >> 3) & 0b00000111
 	rm := operand & 0b00000111
 
-	dest, src, err := d.decodeBinaryRegOrMem("LDS", mod, reg, rm, isWord, dir)
+	regName := ""
+	if isWord {
+		regName = WordOperationRegisterFieldEncoding[reg]
+	} else {
+		regName = ByteOperationRegisterFieldEncoding[reg]
+	}
+
+	dest, src, err := d.decodeBinaryRegOrMem("LDS", mod, regName, rm, isWord, dir)
 	if err != nil {
 		return "", err
 	}
@@ -434,7 +514,14 @@ func les(operation byte, d *Decoder) (string, error) {
 	reg := (operand >> 3) & 0b00000111
 	rm := operand & 0b00000111
 
-	dest, src, err := d.decodeBinaryRegOrMem("LES", mod, reg, rm, isWord, dir)
+	regName := ""
+	if isWord {
+		regName = WordOperationRegisterFieldEncoding[reg]
+	} else {
+		regName = ByteOperationRegisterFieldEncoding[reg]
+	}
+
+	dest, src, err := d.decodeBinaryRegOrMem("LES", mod, regName, rm, isWord, dir)
 	if err != nil {
 		return "", err
 	}

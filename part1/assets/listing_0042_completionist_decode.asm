@@ -434,6 +434,13 @@ jmp far [di]
 
 jmp 21862:30600
 
+; Note(Kostia): Test the __short jmp__ instruction
+jmp test_label
+mov ax, 2
+
+test_label:
+add ax, 2
+
 ;
 ; TODO(casey): I would like to uncomment this, but as far as I can tell, NASM doesn't recognize the ESC instruction :(
 ; so even if I just force the assembler to output the bits here, our disasm will fail to assemble because it will (correctly!)

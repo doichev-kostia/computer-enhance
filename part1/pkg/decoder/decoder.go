@@ -272,6 +272,10 @@ func (d *Decoder) Decode() ([]byte, error) {
 			instruction, err = moveMemoryToAccumulator(operation, d)
 		case d.matchPattern("MOV: Accumulator to memory", operation, "0b1010001w"):
 			instruction, err = moveAccumulatorToMemory(operation, d)
+		case d.matchPattern("MOV: Register/memory to segment register", operation, "0b10001110|0b__0_____"):
+			instruction, err = moveRegOrMemToSegment(operation, d)
+		case d.matchPattern("MOV: Segment register to register/memory", operation, "0b10001100|0b__0_____"):
+			instruction, err = moveSegmentToRegOrMem(operation, d)
 
 		// PUSH
 		case d.matchPattern("PUSH: Register/memory", operation, "0b11111111|0b__110___"):
@@ -680,14 +684,8 @@ func (d *Decoder) matchPattern(name string, candidate byte, pattern string) bool
 }
 
 // [mod|reg|r/m]
-func (d *Decoder) decodeBinaryRegOrMem(instructionName string, mod byte, reg byte, rm byte, isWord bool, dir byte) (dest string, src string, err error) {
+func (d *Decoder) decodeBinaryRegOrMem(instructionName string, mod byte, regName string, rm byte, isWord bool, dir byte) (dest string, src string, err error) {
 	verifyDirection(dir)
-	regName := ""
-	if isWord {
-		regName = WordOperationRegisterFieldEncoding[reg]
-	} else {
-		regName = ByteOperationRegisterFieldEncoding[reg]
-	}
 
 	// MOV dest, src
 	// ADD dest, src
@@ -931,7 +929,14 @@ func (d *Decoder) regOrMemWithReg(instructionName string, operation byte) (dest 
 	// mod is the 2 high bits
 	mod, reg, rm := decodeOperand(operand)
 
-	return d.decodeBinaryRegOrMem(instructionName, mod, reg, rm, isWord, dir)
+	regName := ""
+	if isWord {
+		regName = WordOperationRegisterFieldEncoding[reg]
+	} else {
+		regName = ByteOperationRegisterFieldEncoding[reg]
+	}
+
+	return d.decodeBinaryRegOrMem(instructionName, mod, regName, rm, isWord, dir)
 }
 
 // [xxxxxxx|w] [mod|<regPattern>|r/m] [disp-lo?] [disp-hi?] [data] [data if s|w = 0|1]

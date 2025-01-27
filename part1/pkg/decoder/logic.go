@@ -14,7 +14,7 @@ func not(operation byte, d *Decoder) (string, error) {
 		return "", fmt.Errorf("expected to get an operand for the 'NOT: Invert' instruction")
 	}
 
-	mod, reg, rm := parseOperand(operand)
+	mod, reg, rm := decodeOperand(operand)
 
 	pattern := byte(0b010)
 	if reg != pattern {
@@ -186,7 +186,7 @@ func bitShift(mnemonic string, regPattern byte, instructionName string, operatio
 		return "", fmt.Errorf("expected to get an operand for the '%s' instruction", instructionName)
 	}
 
-	mod, reg, rm := parseOperand(operand)
+	mod, reg, rm := decodeOperand(operand)
 
 	if reg != regPattern {
 		return "", fmt.Errorf("expected the reg field to be %.3b for the '%s' instruction", regPattern, instructionName)

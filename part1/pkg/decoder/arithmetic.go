@@ -369,7 +369,7 @@ func buildImmediateWithRegOrMemArithmeticInstruction(mnemonic string, regPattern
 		return "", fmt.Errorf("expected to get an operand for the '%s' instruction", instructionName)
 	}
 
-	mod, reg, rm := parseOperand(operand)
+	mod, reg, rm := decodeOperand(operand)
 
 	if reg != regPattern {
 		return "", fmt.Errorf("expected the reg field to be %.3b for the '%s' instruction", regPattern, instructionName)

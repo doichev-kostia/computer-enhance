@@ -498,6 +498,16 @@ func (d *Decoder) Decode() ([]byte, error) {
 		case d.matchPattern("STOS: store byte/word", operation, "0b1010101w"):
 			instruction, err = stos(operation, d)
 
+		// CALL
+		case d.matchPattern("CALL: Direct within segment", operation, "0b11101000"):
+			instruction, err = callDirectWithinSegment(operation, d)
+		case d.matchPattern("CALL: Indirect within segment", operation, "0b11111111|0b__010___"):
+			instruction, err = callIndirectWithinSegment(operation, d)
+		case d.matchPattern("CALL: Direct intersegment", operation, "0b10011010"):
+			instruction, err = callDirectIntersegment(operation, d)
+		case d.matchPattern("CALL: Indirect intersegment", operation, "0b11111111|0b__011___"):
+			instruction, err = callIndirectIntersegment(operation, d)
+
 		// JMP = Unconditional jump
 		case d.matchPattern("JMP: Direct within segment", operation, "0b11101001"):
 			panic("TODO: JMP: Direct within segment")
@@ -510,7 +520,7 @@ func (d *Decoder) Decode() ([]byte, error) {
 		case d.matchPattern("JMP: Indirect intersegment", operation, "0b11111111|0b__101___"):
 			panic("TODO: JMP: Indirect intersegment")
 
-		// RET
+		// RET = Return from CALL
 		case d.matchPattern("RET: Within segment", operation, "0b11000011"):
 			panic("TODO: RET: Within segment")
 		case d.matchPattern("RET: Within seg adding immed to SP", operation, "0b11000010"):
@@ -944,7 +954,7 @@ func (d *Decoder) regOrMemWithReg(instructionName string, operation byte) (dest 
 	}
 
 	// mod is the 2 high bits
-	mod, reg, rm := parseOperand(operand)
+	mod, reg, rm := decodeOperand(operand)
 
 	return d.decodeBinaryRegOrMem(instructionName, mod, reg, rm, isWord, dir)
 }
@@ -961,7 +971,7 @@ func (d *Decoder) buildImmediateWithRegOrMemInstruction(mnemonic string, regPatt
 		return "", fmt.Errorf("expected to get an operand for the '%s' instruction", instructionName)
 	}
 
-	mod, reg, rm := parseOperand(operand)
+	mod, reg, rm := decodeOperand(operand)
 
 	if reg != regPattern {
 		return "", fmt.Errorf("expected the reg field to be %.3b for the '%s' instruction", regPattern, instructionName)
@@ -1047,7 +1057,7 @@ func (d *Decoder) calculateEffectiveAddress(rm byte, displacementValue uint16, m
 }
 
 // [mod|reg|r/m]
-func parseOperand(operand byte) (mod byte, reg byte, rm byte) {
+func decodeOperand(operand byte) (mod byte, reg byte, rm byte) {
 	mod = operand >> 6
 	reg = (operand >> 3) & 0b00000111
 	rm = operand & 0b00000111

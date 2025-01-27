@@ -510,15 +510,15 @@ func (d *Decoder) Decode() ([]byte, error) {
 
 		// JMP = Unconditional jump
 		case d.matchPattern("JMP: Direct within segment", operation, "0b11101001"):
-			panic("TODO: JMP: Direct within segment")
+			instruction, err = jumpDirectWithinSegment(operation, d)
 		case d.matchPattern("JMP: Direct within segment-short", operation, "0b11101011"):
-			panic("TODO: JMP: Direct within segment-short")
+			instruction, err = jumpDirectWithinSegmentShort(operation, d)
 		case d.matchPattern("JMP: Indirect within segment", operation, "0b11111111|0b__100___"):
-			panic("TODO: JMP: Indirect within segment")
+			instruction, err = jumpIndirectWithinSegment(operation, d)
 		case d.matchPattern("JMP: Direct intersegment", operation, "0b11101010"):
-			panic("TODO: JMP: Direct intersegment")
+			instruction, err = jumpDirectIntersegment(operation, d)
 		case d.matchPattern("JMP: Indirect intersegment", operation, "0b11111111|0b__101___"):
-			panic("TODO: JMP: Indirect intersegment")
+			instruction, err = jumpIndirectIntersegment(operation, d)
 
 		// RET = Return from CALL
 		case d.matchPattern("RET: Within segment", operation, "0b11000011"):

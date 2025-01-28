@@ -1,8 +1,8 @@
 
 ## assembling
-`ls ./assets/ | grep .asm | xargs -P 4 -I {} ./assemble.fish ./assets/{}`
+`ls ../part-1/ | grep .asm | xargs -P 4 -I {} ./assemble.fish ../part-1/{}`
 or
-`./assemble.fish ./assets/<filename>.asm`
+`./assemble.fish ../part-1/<filename>.asm`
 
 ## running
 `go run ./main.go ./listingxxx`
@@ -14,3 +14,6 @@ Page 160 (pdf) - instruction encoding
 
 homework
 https://github.com/cmuratori/computer_enhance/tree/main/perfaware/part1
+
+final version of 8086 simulator
+https://github.com/cmuratori/computer_enhance/tree/main/perfaware/sim86

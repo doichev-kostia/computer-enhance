@@ -3,7 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/doichev-kostia/performance-aware-programming/part1/pkg/decoder"
+	"github.com/doichev-kostia/computer-enhance/sim8086/pkg/decoder"
 	"os"
 )
 

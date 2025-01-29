@@ -10,11 +10,6 @@ found in the `../part-1` directory. There are no optimizations, and the decoding
 it's a big `switch case` with pattern matching. 
 
 
-## Assembling
-`ls ../part-1/ | grep .asm | xargs -P 4 -I {} ./assemble.fish ../part-1/{}`
-or
-`./assemble.fish ../part-1/<filename>.asm`
-
 ## Running
 `go run ./main.go ../part-1/listingxxx`
 

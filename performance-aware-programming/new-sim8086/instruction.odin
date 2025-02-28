@@ -1,5 +1,8 @@
 package main
 
+import "core:fmt"
+import "core:strings"
+
 Prefix :: enum {
 	None,
 	LOCK,
@@ -125,6 +128,42 @@ Effective_Address :: struct {
 	displacement: i16,
 }
 
+get_effective_address :: proc(
+	eff_addr: Effective_Address,
+	allocator := context.allocator,
+) -> string {
+
+	index := [Effective_Address_Equation.Count]string {
+		"",
+		"bx + si",
+		"bx + di",
+		"bp + si",
+		"bp + di",
+		"si",
+		"di",
+		"bp",
+		"bx",
+	}
+
+	eq := index[eff_addr.equation]
+	builder := strings.builder_make(allocator)
+	writer := strings.to_writer(&builder)
+
+	if eff_addr.segment != Register.DS {
+		fmt.wprintf(writer, "%s:", "")
+	}
+
+	if eq == "" {
+		fmt.wprintf(writer, "[%d]", u16(eff_addr.displacement))
+	} else if eff_addr.displacement < 0 {
+		fmt.wprintf(writer, "[%s - %d]", eq, eff_addr.displacement)
+	} else {
+		fmt.wprintf(writer, "[%s + %d]", eq, eff_addr.displacement)
+	}
+
+	return strings.to_string(builder)
+}
+
 // REG (Register) field encoding
 // | REG | W = 0 | W = 1|
 // ---------------------
@@ -176,11 +215,42 @@ Bit_Field :: enum {
 }
 
 Register_Access :: struct {
-	register: Register,
+	name:     Register,
 
 	// as we can use high or low segments of some registers
 	offset:   u8,
 	capacity: u8,
+}
+
+get_register :: proc(reg: Register_Access) -> string {
+	assert(reg.capacity <= 2, "8086 has only 16 bit registers")
+	// TODO(Kostia) is this going to be re-created every time?
+	index := [Register.Count][3]string {
+		{"", "", ""},
+		{"al", "ah", "ax"},
+		{"bl", "bh", "bx"},
+		{"cl", "ch", "cx"},
+		{"dl", "dh", "dx"},
+		{"sp", "sp", "sp"},
+		{"bp", "bp", "bp"},
+		{"si", "si", "si"},
+		{"di", "di", "di"},
+		{"es", "es", "es"},
+		{"cs", "cs", "cs"},
+		{"ss", "ss", "ss"},
+		{"ds", "ds", "ds"},
+		{"ip", "ip", "ip"},
+		{"flags", "flags", "flags"},
+	}
+
+	tuple := index[reg.name]
+
+	if reg.capacity == 2 {
+		return tuple[2]
+	} else {
+		assert(reg.offset == 0 || reg.offset == 1, "Either low or high register is allowed")
+		return tuple[reg.offset]
+	}
 }
 
 Operand_Type :: enum {

@@ -1,12 +1,7 @@
 package main
 
 import "core:fmt"
-
-Memory :: struct {
-	buff: [1024 * 1024]u8, // 1MB
-}
-
-MEMORY_MASK :: 0xFFFFF // 2^20 -> 1 048 576 bytes -> 1MB
+import "core:os"
 
 // TODO: Build a table of mnemonics
 // instruction struct
@@ -57,5 +52,15 @@ decoder_peek_forward :: proc(decoder: ^Decoder, offset: u32) -> (u8, bool) {
 }
 
 main :: proc() {
-	fmt.printfln("Hello, world")
+	file := "../part-1/listing_0042_completionist_decode"
+
+	mem := Memory{}
+	fd, err := os.open(file, os.O_RDONLY)
+	if err != nil {
+		panic(string(err)) // TODO
+	}
+	load_machine_code(fd, &mem, 0)
+	os.close(fd)
+
+
 }
